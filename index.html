@@ -387,6 +387,19 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 .meta-input:focus{border-color:var(--accent);outline:none;background:#fafcff;}
 .meta-saved{font-size:0.7rem;margin-left:4px;}
 .prog-table-wrap{overflow-x:auto;}
+/* 유사문항 묶음(캐러셀) */
+.qbundle{border:1.5px solid var(--accent);border-radius:var(--radius-lg);background:var(--card-bg);margin-bottom:18px;overflow:hidden;box-shadow:0 2px 10px rgba(64,128,176,0.12);}
+.qbundle-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 15px;background:var(--accent-light);border-bottom:1px solid var(--card-border);font-size:0.82rem;font-weight:700;color:var(--accent);}
+.qbundle-counter{font-weight:600;color:var(--text-secondary);font-size:0.76rem;white-space:nowrap;}
+.qbundle-track{position:relative;}
+.qbundle-track>.q-card{margin:0;border:none;box-shadow:none;border-radius:0;animation:bundleFade 0.22s ease;}
+@keyframes bundleFade{from{opacity:0.35;transform:translateX(8px);}to{opacity:1;transform:none;}}
+.qbundle-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;border-top:1px solid var(--card-border);background:#fbfaf7;}
+.qbundle-arrow{font-family:var(--font-stack);font-size:0.82rem;font-weight:700;padding:6px 14px;border:1px solid var(--accent);border-radius:var(--radius-sm);background:#fff;color:var(--accent);cursor:pointer;transition:all 0.12s;}
+.qbundle-arrow:hover{background:var(--accent);color:#fff;}
+.qbundle-dots{display:flex;gap:7px;align-items:center;}
+.qbundle-dot{width:9px;height:9px;border-radius:50%;background:#d3d0ca;cursor:pointer;transition:background 0.12s;}
+.qbundle-dot.on{background:var(--accent);}
 @media(max-width:767px){
   #top-tabs{top:var(--header-h);overflow-x:auto;}
   .top-tab{padding:11px 13px;font-size:0.8rem;white-space:nowrap;}
@@ -1736,7 +1749,8 @@ function renderIndex() {
       dotCls += sa.correct?' dot-correct':' dot-wrong';
     }
     const lecLabel=q.curr_lec_no?q.curr_lec_no+'강':'기타';
-    const label=`${q.year} · ${lecLabel} · Q${q.qnum}`;
+    const grp=Q2GROUP[q.id]!=null?' 🔗':'';
+    const label=`${q.year} · ${lecLabel} · Q${q.qnum}${grp}`;
     const btn=document.createElement('button');
     btn.className='idx-item';
     btn.setAttribute('data-qidx',i);
@@ -1747,15 +1761,39 @@ function renderIndex() {
 }
 
 function scrollToCard(idx) {
-  const cardId='card-'+idx;
-  const el=document.getElementById(cardId);
-  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+  const el=document.getElementById('card-'+idx);
+  if(el){
+    const b=el.closest('.qbundle');
+    if(b){
+      const gi=b.id.slice(7);  // 'bundle-'
+      const slides=Array.prototype.slice.call(b.querySelector('.qbundle-track').children);
+      const pos=slides.indexOf(el);
+      if(pos>=0) bundleGo(gi,pos);
+      b.scrollIntoView({behavior:'smooth',block:'start'});
+    } else {
+      el.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+  }
   document.querySelectorAll('.idx-item').forEach((b,i)=>b.classList.toggle('idx-current',i===idx));
 }
 
 // ═══════════════════════════════════════════════════
 // RENDER FEED (vertical scroll)
 // ═══════════════════════════════════════════════════
+// 유사문항 그룹 — 강의별 족보 stem+선지 유사도(결정론 difflib, 동일문항/선지순서·표현 변경 묶음)
+const SIMGROUPS=[["2025-L2-Q2","2023-L2-Q63"],["2025-L2-Q7","2023-L2-Q41"],["2025-L2-Q46","2023-L2-Q25","2022-L2-Q108"],["2025-L2-Q52","2023-L2-Q37"],["2025-L2-Q64","2023-L2-Q48"],["2025-L2-Q84","2023-L2-Q50"],["2022-L2-Q72","2021-L2-Q13"],["2022-L2-Q92","2021-L2-Q12"],["2023-L3-Q70","2022-L3-Q31"],["2025-L4-Q37","2023-L4-Q80"],["2022-L4-Q61","2021-L6-Q22"],["2025-L5-Q71","2022-L5-Q109"],["2022-L5-Q24","2021-L7-Q101"],["2023-L9-Q20","2021-L15-Q46"],["2025-L9-Q4","2023-L14-Q51"],["2025-L9-Q19","2023-L14-Q86"],["2023-L14-Q72","2022-L12-Q30"],["2025-L10-Q61","2023-L16-Q44","2023-L16-Q7","2022-L50-Q195"],["2022-L50-Q134","2021-L75-Q189"],["2021-L75-Q188","2021-L75-Q202"],["2025-L11-Q72","2022-L51-Q201"],["2025-L11-Q86","2023-L17-Q88","2022-L51-Q192"],["2025-L13-Q3","2022-L13-Q67","2021-L22-Q58"],["2023-L15-Q31","2022-L13-Q35"],["2023-L11-Q10","2022-L10-Q62"],["2023-L11-Q22","2022-L10-Q14"],["2025-L16-Q36","2021-L10-Q33"],["2023-L13-Q58","2021-L25-Q64"],["2023-L13-Q69","2022-L14-Q13"],["2025-L18-Q38","2023-L19-Q84","2021-L78-Q184"],["2025-L18-Q45","2023-L19-Q89","2022-L53-Q127","2021-L78-Q182"],["2025-L18-Q65","2023-L19-Q82","2021-L78-Q183"],["2025-L19-Q21","2023-L18-Q4"],["2025-L19-Q67","2023-L18-Q56","2022-L52-Q193","2021-L77-Q162"],["2025-L19-Q80","2023-L18-Q18","2022-L52-Q189","2021-L77-Q163"],["2023-L30-Q93","2022-L15-Q95"],["2025-L24-Q90","2022-L17-Q113"],["2023-L32-Q188","2022-L17-Q57"],["2025-L25-Q30","2021-L31-Q74"],["2023-L33-Q172","2022-L18-Q82"],["2023-L38-Q94","2022-L23-Q105"],["2023-L38-Q99","2022-L23-Q117"],["2023-L36-Q92","2022-L21-Q79"],["2022-L24-Q1","2021-L40-Q86"],["2025-L31-Q27","2023-L37-Q106"],["2025-L35-Q38","2023-L25-Q14"],["2025-L38-Q67","2021-L48-Q117"],["2025-L39-Q3","2023-L29-Q39"],["2025-L39-Q40","2021-L50-Q120"],["2025-L39-Q42","2022-L32-Q12"],["2025-L40-Q75","2023-L40-Q150","2022-L33-Q139","2021-L54-Q204"],["2023-L40-Q140","2021-L54-Q200"],["2022-L33-Q129","2021-L54-Q129"],["2025-L43-Q74","2023-L43-Q170","2022-L36-Q137","2021-L57-Q131"],["2025-L43-Q97","2023-L43-Q157"],["2025-L44-Q5","2023-L44-Q173","2022-L37-Q154","2021-L58-Q133"],["2025-L44-Q14","2023-L44-Q121"],["2025-L44-Q34","2023-L44-Q143"],["2023-L44-Q114","2023-L44-Q115","2022-L37-Q164"],["2022-L37-Q165","2021-L58-Q134"],["2023-L49-Q153","2021-L65-Q143"],["2022-L42-Q166","2021-L65-Q190"],["2025-L48-Q66","2023-L50-Q123","2022-L43-Q135","2021-L67-Q205"],["2023-L51-Q127","2022-L44-Q208"],["2023-L51-Q134","2021-L66-Q146"],["2023-L52-Q146","2021-L68-Q208"],["2023-L52-Q156","2022-L45-Q149"],["2022-L39-Q168","2021-L60-Q196"],["2023-L56-Q95","2022-L54-Q146","2021-L79-Q185"],["2023-L56-Q108","2022-L54-Q145","2021-L79-Q186"],["2023-L57-Q151","2022-L55-Q178","2021-L80-Q171"],["2025-L57-Q21","2022-L56-Q125"],["2025-L57-Q22","2023-L58-Q101","2022-L56-Q218"],["2023-L58-Q186","2022-L56-Q123"],["2023-L59-Q129","2022-L57-Q202","2021-L82-Q168"],["2023-L59-Q160","2022-L57-Q133","2021-L82-Q169"],["2025-L59-Q13","2023-L60-Q168"],["2025-L59-Q30","2023-L60-Q125","2022-L58-Q174"],["2023-L61-Q100","2022-L59-Q169"],["2022-L59-Q211","2021-L84-Q178"]];
+// 유사문항 그룹 맵 (SIMGROUPS 는 위 인라인)
+const Q2GROUP={};
+SIMGROUPS.forEach(function(g,gi){ g.forEach(function(qid){ Q2GROUP[qid]=gi; }); });
+let bundleState={};   // gid → 활성 슬라이드 index (재렌더 시 복원)
+
+function makeQCard(q,i){
+  const div=document.createElement('div');
+  div.className='q-card'; div.id='card-'+i;
+  div.setAttribute('data-qid',q.id); div.setAttribute('data-qidx',i);
+  div.innerHTML=buildCardHtml(q,i);
+  return div;
+}
 function renderFeed() {
   const feed=document.getElementById('feed');
   const noRes=document.getElementById('no-results');
@@ -1767,17 +1805,55 @@ function renderFeed() {
   noRes.style.display='none';
 
   const frag=document.createDocumentFragment();
-  filteredQ.forEach((q,i)=>{
-    const div=document.createElement('div');
-    div.className='q-card';
-    div.id='card-'+i;
-    div.setAttribute('data-qid',q.id);
-    div.setAttribute('data-qidx',i);
-    div.innerHTML=buildCardHtml(q,i);
-    frag.appendChild(div);
+  const idxOf={}; filteredQ.forEach(function(q,i){ idxOf[q.id]=i; });
+  const doneG={};
+  filteredQ.forEach(function(q,i){
+    const gi=Q2GROUP[q.id];
+    if(gi!=null){
+      if(doneG[gi]) return;   // 이미 묶음으로 렌더됨
+      const memIdx=SIMGROUPS[gi].filter(function(id){return idxOf[id]!=null;}).map(function(id){return idxOf[id];});
+      if(memIdx.length>=2){ doneG[gi]=true; frag.appendChild(buildBundle(gi, memIdx)); return; }
+      // 현재 필터에 1개만 → 일반 카드로
+    }
+    frag.appendChild(makeQCard(q,i));
   });
   feed.appendChild(frag);
+  // 활성 슬라이드 복원
+  Object.keys(doneG).forEach(function(gi){ bundleGo(gi, bundleState[gi]||0); });
 }
+// 유사문항 묶음(가로 캐러셀) — 각 슬라이드는 정상 card-{i} 라 답/스크랩/해설 그대로 동작
+function buildBundle(gi, memIdx){
+  const b=document.createElement('div'); b.className='qbundle'; b.id='bundle-'+gi;
+  const n=memIdx.length;
+  const head=document.createElement('div'); head.className='qbundle-head';
+  head.innerHTML='<span>🔗 유사문항 '+n+'개 · 옆으로 넘겨 비교</span><span class="qbundle-counter">1 / '+n+'</span>';
+  const track=document.createElement('div'); track.className='qbundle-track';
+  memIdx.forEach(function(i,k){
+    const card=makeQCard(filteredQ[i], i);
+    card.style.display=(k===0?'block':'none');
+    track.appendChild(card);
+  });
+  const nav=document.createElement('div'); nav.className='qbundle-nav';
+  let dots=''; for(let k=0;k<n;k++) dots+='<span class="qbundle-dot'+(k===0?' on':'')+'" onclick="bundleGo(\''+gi+'\','+k+')"></span>';
+  nav.innerHTML='<button class="qbundle-arrow" onclick="bundleNav(\''+gi+'\',-1)">‹ 이전</button>'
+    +'<div class="qbundle-dots">'+dots+'</div>'
+    +'<button class="qbundle-arrow" onclick="bundleNav(\''+gi+'\',1)">다음 ›</button>';
+  b.appendChild(head); b.appendChild(track); b.appendChild(nav);
+  // 터치 스와이프(모바일)
+  let sx=null;
+  track.addEventListener('touchstart',function(e){ sx=e.touches[0].clientX; },{passive:true});
+  track.addEventListener('touchend',function(e){ if(sx==null)return; const dx=e.changedTouches[0].clientX-sx; if(Math.abs(dx)>45) bundleNav(gi, dx<0?1:-1); sx=null; },{passive:true});
+  return b;
+}
+function bundleGo(gi, idx){
+  const b=document.getElementById('bundle-'+gi); if(!b) return;
+  const slides=b.querySelector('.qbundle-track').children; const n=slides.length; if(!n) return;
+  idx=((idx%n)+n)%n; bundleState[gi]=idx;
+  for(let k=0;k<n;k++) slides[k].style.display=(k===idx?'block':'none');
+  const c=b.querySelector('.qbundle-counter'); if(c) c.textContent=(idx+1)+' / '+n;
+  b.querySelectorAll('.qbundle-dot').forEach(function(d,k){ d.classList.toggle('on',k===idx); });
+}
+function bundleNav(gi,dir){ bundleGo(gi,(bundleState[gi]||0)+dir); }
 
 // ═══════════════════════════════════════════════════
 // BUILD CARD HTML
