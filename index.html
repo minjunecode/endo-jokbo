@@ -351,6 +351,11 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
   .sidebar-overlay.visible{display:block;}
   #main{padding:12px 13px;max-width:100%;}
 }
+/* HEADER CONTROLS (과목·사용자 변경) */
+.hdr-select{font-family:var(--font-stack);font-size:0.74rem;font-weight:600;padding:5px 7px;border-radius:6px;border:1px solid rgba(255,255,255,0.32);background:rgba(255,255,255,0.13);color:#fff;cursor:pointer;max-width:160px;}
+.hdr-select option{color:#222;}
+.hdr-user-btn{font-family:var(--font-stack);font-size:0.74rem;font-weight:700;padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.32);background:rgba(255,255,255,0.13);color:#fff;cursor:pointer;white-space:nowrap;}
+.hdr-user-btn:hover,.hdr-select:hover{background:rgba(255,255,255,0.24);}
 /* TOP VIEW TABS */
 #top-tabs{display:flex;gap:0;background:var(--sidebar-bg);border-bottom:1px solid var(--sidebar-border);padding:0 14px;position:sticky;top:var(--header-h);z-index:90;}
 .top-tab{font-size:0.86rem;font-weight:700;font-family:var(--font-stack);padding:11px 18px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px;transition:all 0.12s;}
@@ -373,16 +378,26 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 .prog-bar{position:relative;height:8px;background:#eceae4;border-radius:5px;overflow:hidden;min-width:70px;}
 .prog-bar>span{position:absolute;left:0;top:0;height:100%;background:var(--accent);border-radius:5px;transition:width 0.2s;}
 .prog-bar.full>span{background:var(--correct);}
-.sim-input{width:72px;padding:5px 7px;border:1px solid var(--card-border);border-radius:var(--radius-sm);font-family:var(--font-stack);font-size:0.84rem;text-align:center;background:#fff;}
-.sim-input:focus{border-color:var(--accent);outline:none;background:#fafcff;}
-.sim-saved{font-size:0.72rem;margin-left:6px;}
+.prog-prof{color:var(--text-secondary);white-space:nowrap;font-size:0.8rem;}
+.prog-cell-prog{display:flex;align-items:center;gap:8px;}
+.prog-pct{font-size:0.78rem;color:var(--text-secondary);min-width:32px;}
+.meta-input{padding:4px 6px;border:1px solid var(--card-border);border-radius:5px;font-family:var(--font-stack);font-size:0.8rem;text-align:center;background:#fff;}
+.date-input{width:80px;}
+.sim-input{width:56px;}
+.meta-input:focus{border-color:var(--accent);outline:none;background:#fafcff;}
+.meta-saved{font-size:0.7rem;margin-left:4px;}
+.prog-table-wrap{overflow-x:auto;}
 @media(max-width:767px){
   #top-tabs{top:var(--header-h);overflow-x:auto;}
   .top-tab{padding:11px 13px;font-size:0.8rem;white-space:nowrap;}
   #progress-view{padding:16px 10px 50px;}
-  .prog-table{font-size:0.78rem;}
+  .prog-table{font-size:0.78rem;min-width:660px;}
   .prog-table th,.prog-table td{padding:7px 6px;}
-  .sim-input{width:62px;}
+  .date-input{width:72px;}
+  .sim-input{width:50px;}
+  header h1{font-size:0.86rem;}
+  .hdr-select{max-width:118px;font-size:0.7rem;}
+  .hdr-user-btn{font-size:0.7rem;padding:5px 7px;}
 }
 </style>
 </head>
@@ -394,7 +409,13 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
     <div class="header-sub">2021·2022·2023·2025 &nbsp;|&nbsp; 총 805문항</div>
   </div>
   <div class="header-right">
-    <button id="mobile-sidebar-btn" onclick="toggleSidebar()">필터·목록 ☰</button>
+    <select id="term-select" class="hdr-select" onchange="setTerm(this.value)" title="과목 변경" aria-label="과목 변경">
+      <option value="all">전체 과목</option>
+      <option value="1">대사와 내분비 1차</option>
+      <option value="2">대사와 내분비 2차</option>
+    </select>
+    <button id="user-switch-btn" class="hdr-user-btn" onclick="showIdentityPrompt()" title="사용자 변경" aria-label="사용자 변경">👤 <span id="hdr-user">선택</span> ▾</button>
+    <button id="mobile-sidebar-btn" onclick="toggleSidebar()">☰</button>
   </div>
 </header>
 
@@ -1359,6 +1380,8 @@ const EXPLANATIONS = /*EXPL_START*/{
 let filteredQ = [];
 let filterYear = 'all';
 let filterLec = 'all';
+let filterTerm = 'all';   // 'all' | '1'(대사와 내분비 1차, ~34강) | '2'(2차, 40강~)
+let FULL_LEC = [];        // 전체 강의 로스터(드롭다운 재구성·진척도용) — init 에서 캡처
 let filterScrapOnly = false;
 let isShuffled = false;
 let originalOrder = []; // stores original indices
@@ -1399,7 +1422,10 @@ function pickUser(name){
   const m=document.getElementById('id-modal'); if(m) m.classList.remove('show');
   updateUserPanel();
   migrateLocalToServer().then(function(){
-    sbLoadProgress().then(function(){ renderFeed(); updateStats(); updateScopeBar(); renderIndex(); });
+    sbLoadProgress().then(function(){
+      renderFeed(); updateStats(); updateScopeBar(); renderIndex();
+      const pv=document.getElementById('progress-view'); if(pv && !pv.hidden) renderProgress();
+    });
   });
 }
 // 최초 1회: 기존 브라우저(localStorage) 진도/스크랩을 이 사용자 이름으로 서버 이관(서버가 비어있을 때만)
@@ -1425,6 +1451,7 @@ async function migrateLocalToServer(){
 }
 function updateUserPanel(){
   const el=document.getElementById('user-name'); if(el) el.textContent=CURRENT_USER||'—';
+  const hu=document.getElementById('hdr-user'); if(hu) hu.textContent=CURRENT_USER||'선택';
 }
 
 let savedAnswers = {};
@@ -1442,7 +1469,7 @@ try { hideAnswers = localStorage.getItem(LS_HIDE)==='1'; } catch(e){}
 try { const r=localStorage.getItem(LS_SHARED); if(r) shared=JSON.parse(r); } catch(e){}
 try {
   const rf=localStorage.getItem(LS_FILTER);
-  if(rf){ const f=JSON.parse(rf); filterYear=f.year||'all'; filterLec=f.lec||'all'; filterScrapOnly=!!f.scrap; }
+  if(rf){ const f=JSON.parse(rf); filterYear=f.year||'all'; filterLec=f.lec||'all'; filterTerm=f.term||'all'; filterScrapOnly=!!f.scrap; }
 } catch(e){}
 
 // ═══════════════════════════════════════════════════
@@ -1481,7 +1508,7 @@ function saveScraps() { try{localStorage.setItem(LS_SCRAP,JSON.stringify(savedSc
 function saveExpl()   { try{localStorage.setItem(LS_EXPL,JSON.stringify(savedExpl));}catch(e){} }
 function saveExplHist(){ try{localStorage.setItem(LS_EXPLHIST,JSON.stringify(explHist));}catch(e){} }
 function saveImages() { try{localStorage.setItem(LS_EXPLIMG,JSON.stringify(savedImages)); return true;}catch(e){ alert('브라우저 저장 공간이 부족합니다. 일부 이미지를 삭제하거나 더 작은 이미지를 사용해 주세요.'); return false; } }
-function saveFilter() { try{localStorage.setItem(LS_FILTER,JSON.stringify({year:filterYear,lec:filterLec,scrap:filterScrapOnly}))||false;}catch(e){} }
+function saveFilter() { try{localStorage.setItem(LS_FILTER,JSON.stringify({year:filterYear,lec:filterLec,term:filterTerm,scrap:filterScrapOnly}))||false;}catch(e){} }
 
 // ═══════════════════════════════════════════════════
 // SHUFFLE
@@ -1523,8 +1550,10 @@ function applyFilters(skipShuffle) {
     if(filterLec==='all') lecOk=true;
     else if(filterLec==='null') lecOk=!q.curr_lec_no;
     else lecOk=q.curr_lec_no===filterLec;
+    const t=lecTerm(q.curr_lec_no);
+    const termOk = filterTerm==='all' || t===0 || String(t)===filterTerm;
     const scrapOk = !filterScrapOnly || anyScrap(q.id);
-    return yearOk && lecOk && scrapOk;
+    return yearOk && lecOk && termOk && scrapOk;
   });
   if(isShuffled && !skipShuffle) {
     filteredQ = shuffleArray(filteredQ);
@@ -1548,6 +1577,29 @@ function setLecture(v) {
 function setScrapOnly(v) {
   filterScrapOnly=v;
   applyFilters();
+}
+// 과목(1차/2차) 변경 — 강의 드롭다운을 해당 과목 강의로 재구성하고 필터 적용
+function setTerm(v){
+  filterTerm=v;
+  filterLec='all';
+  const ts=document.getElementById('term-select'); if(ts) ts.value=filterTerm;
+  rebuildLecOptions();
+  applyFilters();
+  const pv=document.getElementById('progress-view');
+  if(pv && !pv.hidden) renderProgress();
+}
+function rebuildLecOptions(){
+  const sel=document.getElementById('lec-select'); if(!sel||!FULL_LEC.length) return;
+  let html='<option value="all">전체 강의</option>';
+  FULL_LEC.forEach(function(r){
+    const t=lecTerm(r.key);
+    if(filterTerm==='all' || t===0 || String(t)===filterTerm){
+      html+='<option value="'+r.key+'">'+esc(r.label)+'</option>';
+    }
+  });
+  sel.innerHTML=html;
+  sel.value=filterLec;
+  if(sel.value!==filterLec){ filterLec='all'; sel.value='all'; }
 }
 
 // ═══════════════════════════════════════════════════
@@ -1594,8 +1646,13 @@ function lecRoster(){
   if(sel){ Array.from(sel.options).forEach(function(o){ if(o.value!=='all') out.push({key:o.value, label:o.textContent}); }); }
   return out;
 }
-// 문항 유사도(%) — qnotes 합성행 '__sim__{강의}'.expl 에 공유 저장(스키마 무변경)
-function curSim(lec){ const s=shared['__sim__'+lec]; return (s&&s.expl)?s.expl:''; }
+// 강의 → 과목(1차/2차) 편성: ~34강=1차, 40강~=2차, CBL/정리/기타=양쪽(0)
+function lecTerm(key){ const n=parseInt(key,10); if(!isNaN(n)){ if(n<=34) return 1; if(n>=40) return 2; } return 0; }
+// 강의별 교수명(정리본 헤더 기준 기본값). 15·16강은 정리본에 미기재 → 공란.
+const LEC_PROF={"01":"박영주","02":"조성엽","03":"조성엽","04":"박영주","05":"공성혜","06":"공성혜","07":"윤지완","08":"오태정","09":"오태정","10":"곽수헌","11":"최승홍(뇌하수체)·김상윤(부신)","12":"송영신","13":"이영아","14":"이영아","15":"","16":"","17":"최준영","18":"조민철","19":"임영재","20":"신충호","21":"신충호","22":"최성희","27":"김상완","28":"김상완","29":"신찬수","30":"신찬수","31":"이성용","32":"윤태진·홍성환","33":"천기정(핵의학)·채영준(외과)","34":"김영아","40":"박도준","41":"문재훈","42":"문재훈","43":"윤태진(영상)·조선욱(결절)","44":"조선욱","45":"천기정·나희영","46":"박소연","47":"이규언","48":"이영아","49":"나희영","53":"최경호","54":"곽수헌","55":"문민경","56":"문민경","57":"정혜승","58":"정재용","59":"임수","60":"임수","61":"오태정","62":"김재현","63":"김재현","65":"권오빈","66":"문준호","67":"조정현","68":"문준호","69":"조영민","70":"조영민","72":"서창석","73":"구승엽","74":"황규리","75":"지병철","76":"이정렬","77":"구승엽"};
+// 강의별 메타(수업일·문항유사도) — qnotes 합성행 '__{kind}__{강의}'.expl 에 공유 저장(스키마 무변경)
+function curMeta(kind,lec){ const s=shared['__'+kind+'__'+lec]; return (s&&s.expl)?s.expl:''; }
+function curProf(lec){ return curMeta('prof',lec) || LEC_PROF[lec] || ''; }
 function renderProgress(){
   const pv=document.getElementById('progress-view'); if(!pv) return;
   // 강의별 집계: 전체 연도 통합, 현재 사용자(savedAnswers) 기준
@@ -1607,49 +1664,53 @@ function renderProgress(){
     const sa=savedAnswers[q.id];
     if(sa&&sa.sel&&sa.sel.length) agg[k].done++;
   });
-  const roster=lecRoster();
+  const roster=(FULL_LEC.length?FULL_LEC:lecRoster()).filter(function(r){
+    const t=lecTerm(r.key);
+    return filterTerm==='all' || t===0 || String(t)===filterTerm;
+  });
   let totT=0,totD=0,rows='';
   roster.forEach(function(r){
     const a=agg[r.key]||{total:0,done:0};
     totT+=a.total; totD+=a.done;
     const pct=a.total?Math.round(a.done/a.total*100):0;
     const full=(a.total>0&&a.done===a.total);
+    const prof=curProf(r.key);
     rows+='<tr>'
       +'<td class="prog-lec">'+esc(r.label)+'</td>'
+      +'<td class="prog-prof">'+(prof?esc(prof):'—')+'</td>'
+      +'<td class="prog-num"><input class="meta-input date-input" type="text" placeholder="–" value="'+esc(curMeta('date',r.key))+'" onblur="saveMetaBlur(\'date\',\''+r.key+'\',this)" onkeydown="if(event.key===&quot;Enter&quot;)this.blur()"><span class="meta-saved" id="save-date-'+r.key+'"></span></td>'
       +'<td class="prog-num">'+a.total+'</td>'
       +'<td class="prog-num'+(full?' prog-done-full':'')+'">'+a.done+'</td>'
-      +'<td><div class="prog-bar'+(full?' full':'')+'"><span style="width:'+pct+'%"></span></div></td>'
-      +'<td class="prog-num">'+pct+'%</td>'
-      +'<td class="prog-num"><input class="sim-input" type="text" inputmode="decimal" placeholder="%" value="'+esc(curSim(r.key))+'" '
-        +'onblur="saveSimBlur(\''+r.key+'\',this)" onkeydown="if(event.key===&quot;Enter&quot;)this.blur()">'
-        +'<span class="sim-saved" id="simsaved-'+r.key+'"></span></td>'
+      +'<td><div class="prog-cell-prog"><div class="prog-bar'+(full?' full':'')+'"><span style="width:'+pct+'%"></span></div><span class="prog-pct">'+pct+'%</span></div></td>'
+      +'<td class="prog-num"><input class="meta-input sim-input" type="text" inputmode="decimal" placeholder="%" value="'+esc(curMeta('sim',r.key))+'" onblur="saveMetaBlur(\'sim\',\''+r.key+'\',this)" onkeydown="if(event.key===&quot;Enter&quot;)this.blur()"><span class="meta-saved" id="save-sim-'+r.key+'"></span></td>'
       +'</tr>';
   });
   const totPct=totT?Math.round(totD/totT*100):0;
   const who=CURRENT_USER?esc(CURRENT_USER):'(사용자 미선택)';
+  const termName= filterTerm==='1'?'대사와 내분비 1차': filterTerm==='2'?'대사와 내분비 2차':'전체 과목';
   pv.innerHTML=
     '<div class="prog-title">📊 풀이 진척도 확인</div>'
-    +'<div class="prog-sub">현재 사용자 <b>'+who+'</b> 기준 · 강의별 전체 연도(2021·2022·2023·2025) 통합 집계입니다.<br>「문항 유사도」 칸에 수치를 적어 두면 두 사람에게 공유됩니다.</div>'
+    +'<div class="prog-sub">현재 사용자 <b>'+who+'</b> · 과목 <b>'+termName+'</b> · 강의별 전체 연도(2021·2022·2023·2025) 통합 집계입니다.<br>「수업일」·「문항 유사도」 칸은 직접 적으면 두 사람에게 공유됩니다. (교수명은 정리본 기준 자동 표기)</div>'
     +'<div class="prog-summary">'
       +'<div class="prog-sum-chip">총 '+totT+'문항</div>'
       +'<div class="prog-sum-chip">푼 문항 '+totD+'개</div>'
       +'<div class="prog-sum-chip">전체 진척률 '+totPct+'%</div>'
       +'<div class="prog-sum-chip">강의 '+roster.length+'개</div>'
     +'</div>'
-    +'<table class="prog-table"><thead><tr>'
-      +'<th>강의</th><th style="text-align:center;">총 문항</th><th style="text-align:center;">푼 문항</th><th>진척</th><th style="text-align:center;">진척률</th><th style="text-align:center;">문항 유사도</th>'
-    +'</tr></thead><tbody>'+rows+'</tbody></table>';
+    +'<div class="prog-table-wrap"><table class="prog-table"><thead><tr>'
+      +'<th>강의</th><th>교수</th><th style="text-align:center;">수업일</th><th style="text-align:center;">총</th><th style="text-align:center;">푼</th><th>진척</th><th style="text-align:center;">유사도</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
-async function saveSimBlur(lec, el){
+async function saveMetaBlur(kind, lec, el){
   const val=el.value.trim();
-  if(val===(curSim(lec)||'')) return;
-  const ind=document.getElementById('simsaved-'+lec);
-  if(ind){ ind.textContent='저장 중…'; ind.style.color='var(--text-muted)'; }
-  const ok=await sbUpsert('__sim__'+lec,{expl:val});
+  if(val===(curMeta(kind,lec)||'')) return;
+  const ind=document.getElementById('save-'+kind+'-'+lec);
+  if(ind){ ind.textContent='…'; ind.style.color='var(--text-muted)'; }
+  const ok=await sbUpsert('__'+kind+'__'+lec,{expl:val});
   setSyncPills();
   if(ind){
-    if(ok){ ind.textContent='✓'; ind.style.color='var(--correct)'; setTimeout(function(){ if(ind&&ind.textContent==='✓') ind.textContent=''; },1800); }
-    else { ind.textContent='⚠ 오프라인'; ind.style.color='var(--incorrect)'; }
+    if(ok){ ind.textContent='✓'; ind.style.color='var(--correct)'; setTimeout(function(){ if(ind&&ind.textContent==='✓') ind.textContent=''; },1600); }
+    else { ind.textContent='⚠'; ind.style.color='var(--incorrect)'; }
   }
 }
 
@@ -2257,6 +2318,9 @@ function checkStorageHealth(){
 function init() {
   updateHideBtn();
   updateUserPanel();
+  FULL_LEC=lecRoster();                 // 전체 강의 로스터 캡처(드롭다운 재구성 전)
+  const termSel=document.getElementById('term-select'); if(termSel) termSel.value=filterTerm;
+  rebuildLecOptions();                   // 현재 과목에 맞춰 강의 드롭다운 구성
   document.querySelectorAll('.yr-btn').forEach(b=>b.classList.toggle('active',b.dataset.year===filterYear));
   const sel=document.getElementById('lec-select');
   if(filterLec!=='all') sel.value=filterLec;
