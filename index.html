@@ -632,34 +632,18 @@ function pickUser(name){
   try{ localStorage.setItem('endo_user',name); }catch(e){}
   const m=document.getElementById('id-modal'); if(m) m.classList.remove('show');
   updateUserPanel();
-  migrateLocalToServer().then(function(){
-    sbLoadProgress().then(function(){
-      renderFeed(); updateStats(); updateScopeBar(); renderIndex();
-      const pv=document.getElementById('progress-view'); if(pv && !pv.hidden) renderProgress();
-    });
+  // ★계정 전환: 이전 사용자 메모리/캠시를 즉시 비우고 서버에서 새 사용자 데이터만 로드.
+  //   (구버전의 자동 localStorage→서버 이관은 전환 시 이전 사용자 데이터를 새 사용자에 덩씨우는
+  //    교차오염 버그가 있어 제거함. 진도·스크랩의 정본은 서버다.)
+  savedAnswers={}; savedScraps={};
+  try{ localStorage.removeItem(LS_ANSWERS); localStorage.removeItem(LS_SCRAP); }catch(e){}
+  sbLoadProgress().then(function(){
+    renderFeed(); updateStats(); updateScopeBar(); renderIndex();
+    const pv=document.getElementById('progress-view'); if(pv && !pv.hidden) renderProgress();
   });
 }
-// 최초 1회: 기존 브라우저(localStorage) 진도/스크랩을 이 사용자 이름으로 서버 이관(서버가 비어있을 때만)
-async function migrateLocalToServer(){
-  if(!SB||!CURRENT_USER) return;
-  let la={}, ls={};
-  try{ la=JSON.parse(localStorage.getItem(LS_ANSWERS)||'{}'); }catch(e){}
-  try{ ls=JSON.parse(localStorage.getItem(LS_SCRAP)||'{}'); }catch(e){}
-  const qids={}; Object.keys(la).forEach(function(k){qids[k]=1;}); Object.keys(ls).forEach(function(k){qids[k]=1;});
-  const list=Object.keys(qids);
-  if(!list.length) return;
-  try{
-    const chk=await SB.from('progress').select('qid').eq('uname',CURRENT_USER).limit(1);
-    if(chk.data && chk.data.length) return; // 이미 서버에 내 데이터 있음 → 이관 생략
-  }catch(e){ return; }
-  const rows=list.map(function(qid){
-    const a=la[qid]; const row={uname:CURRENT_USER, qid:qid};
-    if(a&&a.sel&&a.sel.length){ row.sel=a.sel; row.correct=!!a.correct; }
-    if(ls[qid]) row.scrap=true;
-    return row;
-  });
-  try{ await SB.from('progress').upsert(rows,{onConflict:'uname,qid'}); }catch(e){}
-}
+// (제거됨) 자동 이관 — 계정 전환 시 localStorage 교차오염 유발 버그였음. 서버가 정본이라 불필요.
+async function migrateLocalToServer(){ return; }
 function updateUserPanel(){
   const el=document.getElementById('user-name'); if(el) el.textContent=CURRENT_USER||'—';
   const hu=document.getElementById('hdr-user'); if(hu) hu.textContent=CURRENT_USER||'선택';
