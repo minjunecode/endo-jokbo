@@ -119,6 +119,22 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 .backup-btn{width:100%;padding:8px 10px;background:#fff;color:var(--text-primary);border:1.5px solid var(--card-border);border-radius:var(--radius-sm);cursor:pointer;font-size:0.79rem;font-family:var(--font-stack);font-weight:600;transition:all 0.15s;}
 .backup-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
 .backup-hint{font-size:0.66rem;color:var(--text-muted);line-height:1.55;margin-top:8px;}
+/* Current user panel */
+.user-box{margin-bottom:14px;padding:11px;border:1px solid var(--sidebar-border);border-radius:var(--radius-sm);background:rgba(0,0,0,0.015);}
+.user-line{font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;}
+.user-line b{color:var(--accent);font-weight:700;}
+.user-switch{width:100%;padding:7px 10px;background:#fff;color:var(--text-secondary);border:1.5px solid var(--card-border);border-radius:var(--radius-sm);cursor:pointer;font-size:0.76rem;font-family:var(--font-stack);font-weight:600;}
+.user-switch:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
+.user-hint{font-size:0.66rem;color:var(--text-muted);line-height:1.5;margin-top:7px;}
+/* Identity prompt modal */
+.id-modal{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;z-index:2000;padding:20px;}
+.id-modal.show{display:flex;}
+.id-card{background:#fff;border-radius:14px;padding:28px 26px;max-width:340px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3);}
+.id-title{font-size:1.1rem;font-weight:700;color:var(--text-primary);margin-bottom:6px;}
+.id-sub{font-size:0.78rem;color:var(--text-muted);margin-bottom:18px;line-height:1.5;}
+.id-btns{display:flex;flex-direction:column;gap:10px;}
+.id-btn{padding:13px;border:1.5px solid var(--card-border);border-radius:10px;background:#fff;color:var(--text-primary);font-family:var(--font-stack);font-size:1rem;font-weight:700;cursor:pointer;transition:all 0.12s;}
+.id-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
 
 /* Divider */
 .sidebar-divider{height:1px;background:var(--sidebar-border);margin:14px 0;}
@@ -312,6 +328,8 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 .memo-status.ok{color:#2f7a44;}
 .memo-status.err{color:#9a3b38;}
 .offline-note{font-size:0.7rem;color:#9a3b38;background:#f7e9e8;border-radius:5px;padding:6px 9px;margin-top:7px;line-height:1.5;}
+.scrap-area{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.scrap-who{font-size:0.66rem;font-weight:700;color:#b8860b;background:#fdf6e3;border:1px solid #ecdca0;border-radius:9px;padding:2px 7px;white-space:nowrap;}
 .img-lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px;cursor:zoom-out;}
 .img-lightbox.show{display:flex;}
 .img-lightbox img{width:96vw;height:92vh;object-fit:contain;border-radius:6px;}
@@ -448,15 +466,11 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
         <button class="action-btn shuffle-btn" id="shuffle-btn" onclick="toggleShuffle()">↕ 랜덤 순서</button>
       </div>
 
-      <!-- BACKUP / RESTORE -->
-      <div class="backup-box">
-        <div class="backup-status" id="backup-status">✓ 풀이 기록이 이 브라우저에<br>자동으로 저장됩니다</div>
-        <div class="backup-btns">
-          <button class="backup-btn" onclick="exportProgress()">💾 내 기록 저장(백업)</button>
-          <button class="backup-btn" onclick="triggerImport()">📂 기록 불러오기</button>
-        </div>
-        <div class="backup-hint">다른 컴퓨터·브라우저로 옮기거나 안전하게 보관하려면 '내 기록 저장'으로 백업 파일을 받아 두세요.</div>
-        <input type="file" id="import-file" accept="application/json,.json" style="display:none" onchange="importProgress(this)">
+      <!-- CURRENT USER -->
+      <div class="user-box">
+        <div class="user-line">현재 사용자: <b id="user-name">—</b></div>
+        <button class="user-switch" onclick="showIdentityPrompt()">사용자 변경</button>
+        <div class="user-hint">풀이 진도·스크랩이 이름별로 서버에 저장됩니다.</div>
       </div>
 
       <!-- DIVIDER -->
@@ -1322,6 +1336,54 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 let SB=null, sbOnline=false;
 let shared={};   // {qid:{expl,memo1,memo2,expl_imgs}} — 공유 데이터(서버=정본)
 
+// ── 사용자 식별(로그인 X, 이름 클릭) + 서버 진도/스크랩 ──
+const USERS=['구민준','이현우'];
+const MEMO_OWNER={memo2:'구민준', memo1:'이현우'};  // 메모 슬롯 ↔ 이름
+let CURRENT_USER=null;
+try { CURRENT_USER=localStorage.getItem('endo_user')||null; } catch(e){}
+if(CURRENT_USER && USERS.indexOf(CURRENT_USER)<0) CURRENT_USER=null;
+let allScraps={};   // {qid:[uname,...]} 모든 사용자 스크랩(공유). 내 스크랩 = savedScraps.
+function anyScrap(qid){ return !!(allScraps[qid]&&allScraps[qid].length); }
+function showIdentityPrompt(){
+  const box=document.getElementById('id-btns');
+  if(box){ box.innerHTML=USERS.map(function(u){return '<button class="id-btn" onclick="pickUser(\''+u+'\')">'+u+'</button>';}).join(''); }
+  const m=document.getElementById('id-modal'); if(m) m.classList.add('show');
+}
+function pickUser(name){
+  if(USERS.indexOf(name)<0) return;
+  CURRENT_USER=name;
+  try{ localStorage.setItem('endo_user',name); }catch(e){}
+  const m=document.getElementById('id-modal'); if(m) m.classList.remove('show');
+  updateUserPanel();
+  migrateLocalToServer().then(function(){
+    sbLoadProgress().then(function(){ renderFeed(); updateStats(); updateScopeBar(); renderIndex(); });
+  });
+}
+// 최초 1회: 기존 브라우저(localStorage) 진도/스크랩을 이 사용자 이름으로 서버 이관(서버가 비어있을 때만)
+async function migrateLocalToServer(){
+  if(!SB||!CURRENT_USER) return;
+  let la={}, ls={};
+  try{ la=JSON.parse(localStorage.getItem(LS_ANSWERS)||'{}'); }catch(e){}
+  try{ ls=JSON.parse(localStorage.getItem(LS_SCRAP)||'{}'); }catch(e){}
+  const qids={}; Object.keys(la).forEach(function(k){qids[k]=1;}); Object.keys(ls).forEach(function(k){qids[k]=1;});
+  const list=Object.keys(qids);
+  if(!list.length) return;
+  try{
+    const chk=await SB.from('progress').select('qid').eq('uname',CURRENT_USER).limit(1);
+    if(chk.data && chk.data.length) return; // 이미 서버에 내 데이터 있음 → 이관 생략
+  }catch(e){ return; }
+  const rows=list.map(function(qid){
+    const a=la[qid]; const row={uname:CURRENT_USER, qid:qid};
+    if(a&&a.sel&&a.sel.length){ row.sel=a.sel; row.correct=!!a.correct; }
+    if(ls[qid]) row.scrap=true;
+    return row;
+  });
+  try{ await SB.from('progress').upsert(rows,{onConflict:'uname,qid'}); }catch(e){}
+}
+function updateUserPanel(){
+  const el=document.getElementById('user-name'); if(el) el.textContent=CURRENT_USER||'—';
+}
+
 let savedAnswers = {};
 let savedScraps  = {};
 let savedExpl    = {};
@@ -1418,7 +1480,7 @@ function applyFilters(skipShuffle) {
     if(filterLec==='all') lecOk=true;
     else if(filterLec==='null') lecOk=!q.curr_lec_no;
     else lecOk=q.curr_lec_no===filterLec;
-    const scrapOk = !filterScrapOnly || !!savedScraps[q.id];
+    const scrapOk = !filterScrapOnly || anyScrap(q.id);
     return yearOk && lecOk && scrapOk;
   });
   if(isShuffled && !skipShuffle) {
@@ -1476,7 +1538,7 @@ function updateScopeBar() {
 // ═══════════════════════════════════════════════════
 function renderIndex() {
   const s=countStats();
-  const scrapCount=filteredQ.filter(q=>savedScraps[q.id]).length;
+  const scrapCount=filteredQ.filter(q=>anyScrap(q.id)).length;
   document.getElementById('idx-scope').innerHTML=
     `전체 <b>${s.total}</b> &nbsp;/&nbsp; 푼 <b>${s.answered}</b> &nbsp;/&nbsp; 정답 <b style="color:var(--correct)">${s.correct}</b><br>스크랩 <b style="color:var(--star-color)">${scrapCount}</b>`;
 
@@ -1484,7 +1546,7 @@ function renderIndex() {
   list.innerHTML='';
   filteredQ.forEach((q,i)=>{
     const sa=hideAnswers?null:savedAnswers[q.id];
-    const isScrap=!!savedScraps[q.id];
+    const isScrap=anyScrap(q.id);
     let dotCls='idx-dot';
     if(isScrap) dotCls+=' dot-scrap';
     else if(sa&&sa.sel&&sa.sel.length>0) {
@@ -1547,10 +1609,14 @@ function buildCardHtml(q,idx) {
   const lecTag=q.curr_lec_no?`${q.curr_lec_no}강 ${esc(q.curr_lecture||'')}`:'기타/미분류';
   const recoveredTag=q.recovered?`<span class="meta-tag tag-recovered">복원</span>`:'';
 
-  // Star button: ☆ (empty) / ★ (filled)
+  // Star button: ☆ (empty) / ★ (filled) — 내 스크랩 토글
   const starChar = isScrap ? '★' : '☆';
-  const starBtn=`<button class="scrap-btn${isScrap?' starred':''}" 
-    onclick="toggleScrap('${q.id}')" title="${isScrap?'스크랩 해제':'스크랩'}">${starChar}</button>`;
+  const starTitle = isScrap ? (esc(CURRENT_USER||'')+' 스크랩 해제') : '스크랩';
+  const starBtn=`<button class="scrap-btn${isScrap?' starred':''}"
+    onclick="toggleScrap('${q.id}')" title="${starTitle}">${starChar}</button>`;
+  // 누가 스크랩했는지 배지(나 외 사용자)
+  const others=(allScraps[q.id]||[]).filter(function(u){return u!==CURRENT_USER;});
+  const whoBadges=others.map(function(u){return '<span class="scrap-who">⭐'+esc(u)+'</span>';}).join('');
 
   // header
   const header=`<div class="q-card-header">
@@ -1561,7 +1627,7 @@ function buildCardHtml(q,idx) {
       <span class="meta-tag tag-qnum">족보 Q${q.qnum}</span>
       ${recoveredTag}
     </div>
-    ${starBtn}
+    <div class="scrap-area">${whoBadges}${starBtn}</div>
   </div>`;
 
   // stem
@@ -1608,7 +1674,7 @@ function buildCardHtml(q,idx) {
 // EXPLANATION
 // ═══════════════════════════════════════════════════
 function mdLite(s){return esc(s).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>');}
-const TAB_FIELDS=[{key:'expl',label:'해설'},{key:'memo1',label:'메모1'},{key:'memo2',label:'메모2'}];
+const TAB_FIELDS=[{key:'expl',label:'해설'},{key:'memo2',label:'구민준'},{key:'memo1',label:'이현우'}];
 
 function buildExplHtml(qid, answered) {
   const visibleCls = answered ? ' expl-visible' : '';
@@ -1640,7 +1706,7 @@ function buildExplHtml(qid, answered) {
   };
   return '<div class="expl-section'+visibleCls+'" id="expl-section-'+qid+'">'
     + '<div class="tab-bar">'+tabs+pill+'</div>'
-    + explPane + memoPane('memo1','✍️ 메모1 (친구)') + memoPane('memo2','✍️ 메모2 (나)')
+    + explPane + memoPane('memo2','✍️ 구민준 메모') + memoPane('memo1','✍️ 이현우 메모')
     + '</div>';
 }
 
@@ -1691,6 +1757,37 @@ function setSyncPills(){
     p.className='sync-pill '+(sbOnline?'on':'off');
     p.textContent=sbOnline?'🟢 공유 중':'🔴 오프라인';
   });
+}
+
+// ── 서버 진도/스크랩 (progress 테이블, 사용자별) ──
+// 내 진도(answers)는 savedAnswers, 내 스크랩은 savedScraps, 전체 스크랩(공유)은 allScraps.
+async function sbLoadProgress(){
+  if(!SB) return;
+  try{
+    const res=await SB.from('progress').select('uname,qid,sel,correct,scrap');
+    if(res.error) throw res.error;
+    savedAnswers={}; allScraps={}; savedScraps={};
+    (res.data||[]).forEach(function(r){
+      if(r.uname===CURRENT_USER){
+        if(r.sel&&r.sel.length) savedAnswers[r.qid]={sel:r.sel,correct:!!r.correct};
+        if(r.scrap) savedScraps[r.qid]=true;
+      }
+      if(r.scrap){ (allScraps[r.qid]=allScraps[r.qid]||[]).push(r.uname); }
+    });
+    sbOnline=true;
+    try{ localStorage.setItem(LS_ANSWERS,JSON.stringify(savedAnswers)); localStorage.setItem(LS_SCRAP,JSON.stringify(savedScraps)); }catch(e){}
+  }catch(e){ sbOnline=false; }
+}
+async function sbSaveProgress(qid, patch){
+  if(!CURRENT_USER) return false;
+  try{ localStorage.setItem(LS_ANSWERS,JSON.stringify(savedAnswers)); localStorage.setItem(LS_SCRAP,JSON.stringify(savedScraps)); }catch(e){}
+  if(!SB){ sbOnline=false; return false; }
+  try{
+    const row=Object.assign({uname:CURRENT_USER, qid:qid, updated_at:new Date().toISOString()}, patch);
+    const res=await SB.from('progress').upsert(row,{onConflict:'uname,qid'});
+    if(res.error) throw res.error;
+    sbOnline=true; return true;
+  }catch(e){ sbOnline=false; return false; }
 }
 
 // ── 공유 데이터 헬퍼 (표시값 우선순위) ──
@@ -1774,7 +1871,7 @@ async function saveMemoBlur(qid, field){
   const ok=await sbUpsert(qid, patch);
   refreshTabDots(qid); setSyncPills();
   if(stat){
-    if(ok){ stat.textContent='✓ 저장됨 (친구에게도 공유됨)'; stat.className='memo-status ok'; setTimeout(function(){ if(stat&&stat.classList.contains('ok')) stat.textContent=''; },2500); }
+    if(ok){ stat.textContent='✓ 저장됨 (공유됨)'; stat.className='memo-status ok'; setTimeout(function(){ if(stat&&stat.classList.contains('ok')) stat.textContent=''; },2500); }
     else { stat.textContent='⚠ 오프라인 — 인터넷 연결 후 칸을 다시 벗어나면 저장됩니다'; stat.className='memo-status err'; }
   }
 }
@@ -1864,6 +1961,7 @@ document.addEventListener('paste',function(e){
 // ═══════════════════════════════════════════════════
 function onChoice(qid, num, cardIdx) {
   if(hideAnswers) return; // 풀이 숨김 중에는 새로 풀 수 없음(표시만 숨김)
+  if(!CURRENT_USER){ showIdentityPrompt(); return; }
   const q=QUESTIONS.find(x=>x.id===qid);
   if(!q) return;
   if(savedAnswers[qid]&&savedAnswers[qid].sel&&savedAnswers[qid].sel.length>0) return;
@@ -1873,6 +1971,7 @@ function onChoice(qid, num, cardIdx) {
 
   savedAnswers[qid]={sel:[num], correct:correct};
   saveAnswers();
+  sbSaveProgress(qid,{sel:[num], correct:correct});   // 서버에 사용자별 저장
   refreshCard(qid, cardIdx);
   updateStats();
   updateScopeBar();
@@ -1891,17 +1990,18 @@ function refreshCard(qid, cardIdx) {
 // SCRAP
 // ═══════════════════════════════════════════════════
 function toggleScrap(qid) {
-  if(savedScraps[qid]) delete savedScraps[qid];
-  else savedScraps[qid]=true;
+  if(!CURRENT_USER){ showIdentityPrompt(); return; }
+  const nowScrap = !savedScraps[qid];
+  if(nowScrap) savedScraps[qid]=true; else delete savedScraps[qid];
   saveScraps();
-  // Update star in DOM without full re-render
-  const cards=document.querySelectorAll('[data-qid="'+qid+'"] .scrap-btn');
-  cards.forEach(btn=>{
-    const starred=!!savedScraps[qid];
-    btn.classList.toggle('starred',starred);
-    btn.textContent=starred?'★':'☆';
-    btn.title=starred?'스크랩 해제':'스크랩';
-  });
+  // 전체 스크랩 맵에서 내 이름 갱신
+  let arr=(allScraps[qid]||[]).filter(function(u){return u!==CURRENT_USER;});
+  if(nowScrap) arr.push(CURRENT_USER);
+  if(arr.length) allScraps[qid]=arr; else delete allScraps[qid];
+  sbSaveProgress(qid,{scrap:nowScrap});   // 서버 저장
+  // 카드 재렌더(스크랩한 사람 표시 갱신)
+  const cardEl=document.querySelector('.q-card[data-qid="'+qid+'"]');
+  if(cardEl){ const i=parseInt(cardEl.getAttribute('data-qidx'),10); if(filteredQ[i]) cardEl.innerHTML=buildCardHtml(filteredQ[i], i); }
   renderIndex();
   updateScopeBar();
   if(filterScrapOnly) applyFilters();
@@ -1999,21 +2099,31 @@ function checkStorageHealth(){
 }
 
 function init() {
-  checkStorageHealth();
   updateHideBtn();
+  updateUserPanel();
   document.querySelectorAll('.yr-btn').forEach(b=>b.classList.toggle('active',b.dataset.year===filterYear));
   const sel=document.getElementById('lec-select');
   if(filterLec!=='all') sel.value=filterLec;
   const scrapChk=document.getElementById('scrap-only-chk');
   if(filterScrapOnly) scrapChk.checked=true;
   applyFilters();
-  // 공유 데이터(해설·메모1·메모2·사진) Supabase 로드 → 끝나면 다시 그림
+  // 공유데이터(해설·메모) + 진도/스크랩(서버) 로드 → 렌더. 사용자 미선택 시 "누구세요?".
   sbInit();
-  sbLoadAll().then(function(){ renderFeed(); setSyncPills(); });
+  Promise.all([sbLoadAll(), sbLoadProgress()]).then(function(){
+    renderFeed(); updateStats(); updateScopeBar(); renderIndex(); setSyncPills();
+    if(!CURRENT_USER) showIdentityPrompt();
+  });
 }
 
 init();
 </script>
 <div class="img-lightbox" id="img-lightbox" onclick="this.classList.remove('show')"><img alt="첨부 사진 확대"></div>
+<div class="id-modal" id="id-modal">
+  <div class="id-card">
+    <div class="id-title">누구세요?</div>
+    <div class="id-sub">이름을 선택하면 풀이 진도·스크랩·메모가 그 이름으로 저장됩니다. (로그인 없음)</div>
+    <div class="id-btns" id="id-btns"></div>
+  </div>
+</div>
 </body>
 </html>
