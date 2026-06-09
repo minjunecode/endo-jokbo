@@ -305,6 +305,12 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 .tab-pane[hidden]{display:none;}
 .memo-empty{font-size:0.82rem;color:var(--text-muted);font-style:italic;line-height:1.7;}
 .memo-hint{font-size:0.68rem;color:var(--text-muted);margin-bottom:7px;line-height:1.5;}
+.expl-textarea.memo-live{display:block;min-height:90px;background:#fff;}
+.expl-textarea.memo-live:focus{border-color:var(--accent);background:#fafcff;}
+.memo-status{font-size:0.68rem;margin-top:5px;min-height:1em;line-height:1.4;}
+.memo-status.saving{color:var(--text-muted);}
+.memo-status.ok{color:#2f7a44;}
+.memo-status.err{color:#9a3b38;}
 .offline-note{font-size:0.7rem;color:#9a3b38;background:#f7e9e8;border-radius:5px;padding:6px 9px;margin-top:7px;line-height:1.5;}
 .img-lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px;cursor:zoom-out;}
 .img-lightbox.show{display:flex;}
@@ -1627,11 +1633,9 @@ function buildExplHtml(qid, answered) {
     + '</div>';
   const memoPane=function(field,who){
     return '<div class="tab-pane" id="pane-'+field+'-'+qid+'" hidden>'
-    + '<div class="memo-hint">'+who+' · 친구와 내가 서로의 메모를 볼 수 있습니다</div>'
-    + '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button class="expl-edit-btn" id="editbtn-'+field+'-'+qid+'" onclick="startEdit(\''+qid+'\',\''+field+'\')">✏️ 수정</button></div>'
-    + buildViewHtml(qid,field)
-    + '<textarea class="expl-textarea" id="ta-'+field+'-'+qid+'" placeholder="메모를 입력하세요..."></textarea>'
-    + '<button class="expl-save-btn" id="save-'+field+'-'+qid+'" onclick="saveEdit(\''+qid+'\',\''+field+'\')">저장</button>'
+    + '<div class="memo-hint">'+who+' · 아래 칸을 클릭해 바로 작성하세요 (입력칸을 벗어나면 자동 저장)</div>'
+    + '<textarea class="expl-textarea memo-live" id="ta-'+field+'-'+qid+'" placeholder="여기를 클릭해 바로 작성…" oninput="memoTyping(\''+qid+'\',\''+field+'\')" onblur="saveMemoBlur(\''+qid+'\',\''+field+'\')">'+esc(curMemo(qid,field))+'</textarea>'
+    + '<div class="memo-status" id="memostat-'+field+'-'+qid+'"></div>'
     + '</div>';
   };
   return '<div class="expl-section'+visibleCls+'" id="expl-section-'+qid+'">'
@@ -1753,6 +1757,26 @@ function refreshTabDots(qid){
     if(has&&!dot){ dot=document.createElement('span'); dot.className='tab-dot '+f; btn.appendChild(dot); }
     else if(!has&&dot){ dot.remove(); }
   });
+}
+// 메모: '수정' 버튼 없이 텍스트창 클릭→바로 작성, 입력칸 벗어나면(blur) 자동 저장
+function memoTyping(qid, field){
+  const stat=document.getElementById('memostat-'+field+'-'+qid);
+  if(stat){ stat.textContent='작성 중… (칸을 벗어나면 저장)'; stat.className='memo-status saving'; }
+}
+async function saveMemoBlur(qid, field){
+  const ta=document.getElementById('ta-'+field+'-'+qid);
+  if(!ta) return;
+  const val=ta.value.trim();
+  const stat=document.getElementById('memostat-'+field+'-'+qid);
+  if(val===(curMemo(qid,field)||'')){ if(stat){ stat.textContent=''; stat.className='memo-status'; } return; } // 변경 없음
+  if(stat){ stat.textContent='저장 중…'; stat.className='memo-status saving'; }
+  const patch={}; patch[field]=val;
+  const ok=await sbUpsert(qid, patch);
+  refreshTabDots(qid); setSyncPills();
+  if(stat){
+    if(ok){ stat.textContent='✓ 저장됨 (친구에게도 공유됨)'; stat.className='memo-status ok'; setTimeout(function(){ if(stat&&stat.classList.contains('ok')) stat.textContent=''; },2500); }
+    else { stat.textContent='⚠ 오프라인 — 인터넷 연결 후 칸을 다시 벗어나면 저장됩니다'; stat.className='memo-status err'; }
+  }
 }
 
 // ═══════════════════════════════════════════════════
