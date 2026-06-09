@@ -351,6 +351,39 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
   .sidebar-overlay.visible{display:block;}
   #main{padding:12px 13px;max-width:100%;}
 }
+/* TOP VIEW TABS */
+#top-tabs{display:flex;gap:0;background:var(--sidebar-bg);border-bottom:1px solid var(--sidebar-border);padding:0 14px;position:sticky;top:var(--header-h);z-index:90;}
+.top-tab{font-size:0.86rem;font-weight:700;font-family:var(--font-stack);padding:11px 18px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px;transition:all 0.12s;}
+.top-tab:hover{color:var(--accent);}
+.top-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+/* PROGRESS DASHBOARD */
+#progress-view{max-width:1000px;margin:0 auto;padding:22px 18px 60px;}
+.prog-title{font-size:1.05rem;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.prog-sub{font-size:0.8rem;color:var(--text-muted);margin-bottom:18px;line-height:1.6;}
+.prog-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+.prog-sum-chip{background:var(--chip-bg);color:var(--chip-text);border-radius:var(--radius-sm);padding:8px 14px;font-size:0.84rem;font-weight:600;}
+.prog-table{width:100%;border-collapse:collapse;font-size:0.84rem;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);overflow:hidden;}
+.prog-table th{background:var(--sidebar-bg);color:var(--text-primary);font-weight:700;text-align:left;padding:10px 12px;border-bottom:1.5px solid var(--sidebar-border);font-size:0.78rem;}
+.prog-table td{padding:9px 12px;border-bottom:1px solid #efece6;vertical-align:middle;}
+.prog-table tr:last-child td{border-bottom:none;}
+.prog-table tbody tr:hover td{background:#faf8f4;}
+.prog-lec{font-weight:600;color:var(--text-primary);}
+.prog-num{text-align:center;white-space:nowrap;}
+.prog-done-full{color:var(--correct);font-weight:700;}
+.prog-bar{position:relative;height:8px;background:#eceae4;border-radius:5px;overflow:hidden;min-width:70px;}
+.prog-bar>span{position:absolute;left:0;top:0;height:100%;background:var(--accent);border-radius:5px;transition:width 0.2s;}
+.prog-bar.full>span{background:var(--correct);}
+.sim-input{width:72px;padding:5px 7px;border:1px solid var(--card-border);border-radius:var(--radius-sm);font-family:var(--font-stack);font-size:0.84rem;text-align:center;background:#fff;}
+.sim-input:focus{border-color:var(--accent);outline:none;background:#fafcff;}
+.sim-saved{font-size:0.72rem;margin-left:6px;}
+@media(max-width:767px){
+  #top-tabs{top:var(--header-h);overflow-x:auto;}
+  .top-tab{padding:11px 13px;font-size:0.8rem;white-space:nowrap;}
+  #progress-view{padding:16px 10px 50px;}
+  .prog-table{font-size:0.78rem;}
+  .prog-table th,.prog-table td{padding:7px 6px;}
+  .sim-input{width:62px;}
+}
 </style>
 </head>
 <body>
@@ -364,6 +397,11 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
     <button id="mobile-sidebar-btn" onclick="toggleSidebar()">필터·목록 ☰</button>
   </div>
 </header>
+
+<nav id="top-tabs" aria-label="화면 전환">
+  <button class="top-tab active" id="toptab-quiz" onclick="switchView('quiz')">📋 문제 풀이</button>
+  <button class="top-tab" id="toptab-progress" onclick="switchView('progress')">📊 풀이 진척도 확인</button>
+</nav>
 
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
@@ -497,6 +535,8 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
     <div id="feed"></div>
   </main>
 </div>
+
+<div id="progress-view" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -1534,6 +1574,83 @@ function updateScopeBar() {
   const s=countStats();
   document.getElementById('scope-bar').innerHTML=
     `전체 <b>${s.total}</b>문항 &nbsp;|&nbsp; 푼 <b>${s.answered}</b> &nbsp;|&nbsp; 정답 <b style="color:var(--correct)">${s.correct}</b> &nbsp;|&nbsp; 오답 <b style="color:var(--incorrect)">${s.wrong}</b>`;
+}
+
+// ═══════════════════════════════════════════════════
+// VIEW SWITCH + 풀이 진척도 대시보드
+// ═══════════════════════════════════════════════════
+function switchView(view){
+  const isProg=(view==='progress');
+  const layout=document.querySelector('.layout'); if(layout) layout.style.display=isProg?'none':'';
+  const pv=document.getElementById('progress-view'); if(pv) pv.hidden=!isProg;
+  const tq=document.getElementById('toptab-quiz'); if(tq) tq.classList.toggle('active',!isProg);
+  const tp=document.getElementById('toptab-progress'); if(tp) tp.classList.toggle('active',isProg);
+  if(isProg) renderProgress();
+  window.scrollTo(0,0);
+}
+// 강의 로스터 = #lec-select 옵션('전체' 제외) — 강의 순서·라벨의 정본
+function lecRoster(){
+  const sel=document.getElementById('lec-select'); const out=[];
+  if(sel){ Array.from(sel.options).forEach(function(o){ if(o.value!=='all') out.push({key:o.value, label:o.textContent}); }); }
+  return out;
+}
+// 문항 유사도(%) — qnotes 합성행 '__sim__{강의}'.expl 에 공유 저장(스키마 무변경)
+function curSim(lec){ const s=shared['__sim__'+lec]; return (s&&s.expl)?s.expl:''; }
+function renderProgress(){
+  const pv=document.getElementById('progress-view'); if(!pv) return;
+  // 강의별 집계: 전체 연도 통합, 현재 사용자(savedAnswers) 기준
+  const agg={};
+  QUESTIONS.forEach(function(q){
+    const k=q.curr_lec_no||'기타';
+    if(!agg[k]) agg[k]={total:0,done:0};
+    agg[k].total++;
+    const sa=savedAnswers[q.id];
+    if(sa&&sa.sel&&sa.sel.length) agg[k].done++;
+  });
+  const roster=lecRoster();
+  let totT=0,totD=0,rows='';
+  roster.forEach(function(r){
+    const a=agg[r.key]||{total:0,done:0};
+    totT+=a.total; totD+=a.done;
+    const pct=a.total?Math.round(a.done/a.total*100):0;
+    const full=(a.total>0&&a.done===a.total);
+    rows+='<tr>'
+      +'<td class="prog-lec">'+esc(r.label)+'</td>'
+      +'<td class="prog-num">'+a.total+'</td>'
+      +'<td class="prog-num'+(full?' prog-done-full':'')+'">'+a.done+'</td>'
+      +'<td><div class="prog-bar'+(full?' full':'')+'"><span style="width:'+pct+'%"></span></div></td>'
+      +'<td class="prog-num">'+pct+'%</td>'
+      +'<td class="prog-num"><input class="sim-input" type="text" inputmode="decimal" placeholder="%" value="'+esc(curSim(r.key))+'" '
+        +'onblur="saveSimBlur(\''+r.key+'\',this)" onkeydown="if(event.key===&quot;Enter&quot;)this.blur()">'
+        +'<span class="sim-saved" id="simsaved-'+r.key+'"></span></td>'
+      +'</tr>';
+  });
+  const totPct=totT?Math.round(totD/totT*100):0;
+  const who=CURRENT_USER?esc(CURRENT_USER):'(사용자 미선택)';
+  pv.innerHTML=
+    '<div class="prog-title">📊 풀이 진척도 확인</div>'
+    +'<div class="prog-sub">현재 사용자 <b>'+who+'</b> 기준 · 강의별 전체 연도(2021·2022·2023·2025) 통합 집계입니다.<br>「문항 유사도」 칸에 수치를 적어 두면 두 사람에게 공유됩니다.</div>'
+    +'<div class="prog-summary">'
+      +'<div class="prog-sum-chip">총 '+totT+'문항</div>'
+      +'<div class="prog-sum-chip">푼 문항 '+totD+'개</div>'
+      +'<div class="prog-sum-chip">전체 진척률 '+totPct+'%</div>'
+      +'<div class="prog-sum-chip">강의 '+roster.length+'개</div>'
+    +'</div>'
+    +'<table class="prog-table"><thead><tr>'
+      +'<th>강의</th><th style="text-align:center;">총 문항</th><th style="text-align:center;">푼 문항</th><th>진척</th><th style="text-align:center;">진척률</th><th style="text-align:center;">문항 유사도</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table>';
+}
+async function saveSimBlur(lec, el){
+  const val=el.value.trim();
+  if(val===(curSim(lec)||'')) return;
+  const ind=document.getElementById('simsaved-'+lec);
+  if(ind){ ind.textContent='저장 중…'; ind.style.color='var(--text-muted)'; }
+  const ok=await sbUpsert('__sim__'+lec,{expl:val});
+  setSyncPills();
+  if(ind){
+    if(ok){ ind.textContent='✓'; ind.style.color='var(--correct)'; setTimeout(function(){ if(ind&&ind.textContent==='✓') ind.textContent=''; },1800); }
+    else { ind.textContent='⚠ 오프라인'; ind.style.color='var(--incorrect)'; }
+  }
 }
 
 // ═══════════════════════════════════════════════════
