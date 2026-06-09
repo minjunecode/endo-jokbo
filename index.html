@@ -1698,13 +1698,14 @@ function buildExplHtml(qid, answered) {
     + '<textarea class="expl-textarea" id="ta-expl-'+qid+'" placeholder="해설을 입력하세요..."></textarea>'
     + '<button class="expl-save-btn" id="save-expl-'+qid+'" onclick="saveEdit(\''+qid+'\',\'expl\')">저장</button>'
     + '<div class="expl-paste-hint" id="paste-expl-'+qid+'">📋 입력칸 클릭 후 <b>Ctrl+V</b> 로 사진을 붙여넣으면 해설에 추가됩니다(공유됨).</div>'
-    + '<div class="expl-imgs" id="imgs-'+qid+'">'+buildImgGallery(qid)+'</div>'
+    + '<div class="expl-imgs" id="imgs-expl-'+qid+'">'+buildImgGallery(qid,'expl')+'</div>'
     + '</div>';
   const memoPane=function(field,who){
     return '<div class="tab-pane" id="pane-'+field+'-'+qid+'" hidden>'
-    + '<div class="memo-hint">'+who+' · 아래 칸을 클릭해 바로 작성하세요 (입력칸을 벗어나면 자동 저장)</div>'
+    + '<div class="memo-hint">'+who+' · 아래 칸을 클릭해 바로 작성하세요 (입력칸을 벗어나면 자동 저장). 📋 칸 클릭 후 <b>Ctrl+V</b> 로 사진도 붙여넣을 수 있습니다(공유됨).</div>'
     + '<textarea class="expl-textarea memo-live" id="ta-'+field+'-'+qid+'" placeholder="여기를 클릭해 바로 작성…" oninput="memoTyping(\''+qid+'\',\''+field+'\')" onblur="saveMemoBlur(\''+qid+'\',\''+field+'\')">'+esc(curMemo(qid,field))+'</textarea>'
     + '<div class="memo-status" id="memostat-'+field+'-'+qid+'"></div>'
+    + '<div class="expl-imgs" id="imgs-'+field+'-'+qid+'">'+buildImgGallery(qid,field)+'</div>'
     + '</div>';
   };
   return '<div class="expl-section'+visibleCls+'" id="expl-section-'+qid+'">'
@@ -1801,11 +1802,14 @@ function curExpl(qid){
   return EXPLANATIONS[qid]||'';
 }
 function curMemo(qid,field){ const s=shared[qid]; return (s&&s[field])?s[field]:''; }
-function curImgs(qid){
+function rawImgs(qid){
   const s=shared[qid];
   if(s&&Array.isArray(s.expl_imgs)&&s.expl_imgs.length) return s.expl_imgs;
   return savedImages[qid]||[];
 }
+// 이미지 항목은 구버전=문자열(해설사진) 또는 신버전={f:field, s:dataURL}.
+function imgField(it){ return (typeof it==='string')?'expl':((it&&it.f)||'expl'); }
+function imgSrc(it){ return (typeof it==='string')?it:((it&&it.s)||''); }
 
 // ── 탭 전환 / 편집 ──
 function switchTab(qid, field){
@@ -1882,16 +1886,24 @@ async function saveMemoBlur(qid, field){
 // ═══════════════════════════════════════════════════
 // EXPLANATION IMAGES — 해설 수정 중 Ctrl+V 붙여넣기
 // ═══════════════════════════════════════════════════
-function buildImgGallery(qid){
-  const imgs=curImgs(qid);
-  return imgs.map((src,i)=>'<div class="expl-img-wrap"><img class="expl-img" src="'+src+'" onclick="openLightbox(\''+qid+'\','+i+')"><button class="expl-img-del" title="사진 삭제" onclick="delExplImg(\''+qid+'\','+i+')">✕</button></div>').join('');
+function buildImgGallery(qid, field){
+  const raw=rawImgs(qid);
+  let html='';
+  raw.forEach(function(it,i){
+    if(imgField(it)!==field) return;   // 같은 탭(해설/구민준/이현우)에 속한 사진만
+    const src=imgSrc(it);
+    html+='<div class="expl-img-wrap"><img class="expl-img" src="'+src+'" onclick="openLightbox(\''+qid+'\','+i+')"><button class="expl-img-del" title="사진 삭제" onclick="delExplImg(\''+qid+'\','+i+')">✕</button></div>';
+  });
+  return html;
 }
 function refreshExplImgs(qid){
-  const el=document.getElementById('imgs-'+qid);
-  if(el) el.innerHTML=buildImgGallery(qid);
+  ['expl','memo1','memo2'].forEach(function(f){
+    const el=document.getElementById('imgs-'+f+'-'+qid);
+    if(el) el.innerHTML=buildImgGallery(qid,f);
+  });
 }
-// 붙여넣은 이미지를 최대 1100px로 축소 + JPEG 압축 → Supabase 공유 저장
-function addImageFromBlob(qid, blob){
+// 붙여넣은 이미지를 최대 1100px로 축소 + JPEG 압축 → Supabase 공유 저장(탭별로 태깅)
+function addImageFromBlob(qid, field, blob){
   const reader=new FileReader();
   reader.onload=function(ev){
     const img=new Image();
@@ -1905,7 +1917,7 @@ function addImageFromBlob(qid, blob){
       ctx.drawImage(img,0,0,w,h);
       let dataURL;
       try{ dataURL=cv.toDataURL('image/jpeg',0.82); }catch(e){ dataURL=ev.target.result; }
-      const imgs=curImgs(qid).slice(); imgs.push(dataURL);
+      const imgs=rawImgs(qid).slice(); imgs.push({f:field, s:dataURL});
       sbUpsert(qid,{expl_imgs:imgs}).then(function(ok){
         refreshExplImgs(qid); setSyncPills();
         if(!ok) alert('인터넷 연결이 없어 사진 공유 저장에 실패했습니다. 연결 후 다시 시도해 주세요.');
@@ -1917,8 +1929,8 @@ function addImageFromBlob(qid, blob){
   reader.readAsDataURL(blob);
 }
 function delExplImg(qid,i){
-  const cur=curImgs(qid);
-  if(!cur.length) return;
+  const cur=rawImgs(qid);
+  if(!cur[i]) return;
   if(!confirm('이 사진을 삭제할까요? (공유됨)')) return;
   const imgs=cur.slice(); imgs.splice(i,1);
   sbUpsert(qid,{expl_imgs:imgs}).then(function(){ refreshExplImgs(qid); setSyncPills(); });
@@ -1930,8 +1942,8 @@ function openImgLightbox(src){
   lb.classList.add('show');
 }
 function openLightbox(qid,i){
-  const imgs=curImgs(qid); if(!imgs[i]) return;
-  openImgLightbox(imgs[i]);
+  const it=rawImgs(qid)[i]; if(!it) return;
+  openImgLightbox(imgSrc(it));
 }
 // 문항 이미지 로드 실패 시 자리표시(따옴표 중첩 버그 방지 위해 함수로 분리)
 function imgFail(el){
@@ -1943,17 +1955,19 @@ function imgFail(el){
   span.textContent='[이미지 없음'+(p?': '+p:'')+']';
   parent.appendChild(span);
 }
-// paste 핸들러 — 해설 textarea(편집 모드)가 포커스됐을 때만 동작
+// paste 핸들러 — 해설/구민준/이현우 textarea 가 포커스됐을 때 동작(탭별 태깅)
 document.addEventListener('paste',function(e){
   const ae=document.activeElement;
-  if(!ae||!ae.id||ae.id.indexOf('ta-expl-')!==0) return;
-  const qid=ae.id.slice(8);
+  if(!ae||!ae.id) return;
+  const m=ae.id.match(/^ta-(expl|memo1|memo2)-(.+)$/);
+  if(!m) return;
+  const field=m[1], qid=m[2];
   const items=(e.clipboardData&&e.clipboardData.items)||[];
   let found=false;
   for(let i=0;i<items.length;i++){
     if(items[i].type&&items[i].type.indexOf('image')===0){
       const blob=items[i].getAsFile();
-      if(blob){ addImageFromBlob(qid,blob); found=true; }
+      if(blob){ addImageFromBlob(qid,field,blob); found=true; }
     }
   }
   if(found) e.preventDefault();
