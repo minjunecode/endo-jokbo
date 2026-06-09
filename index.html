@@ -114,13 +114,6 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 .action-btn.clear-btn:hover{border-color:#c2603a;color:#fff;background:#c2603a;}
 
 /* Backup / Restore */
-.backup-box{margin-bottom:14px;padding:11px 11px 12px;border:1px solid var(--sidebar-border);border-radius:var(--radius-sm);background:rgba(0,0,0,0.015);}
-.backup-status{font-size:0.72rem;color:var(--correct);font-weight:600;margin-bottom:9px;line-height:1.45;}
-.backup-status.warn{color:var(--incorrect);}
-.backup-btns{display:flex;flex-direction:column;gap:6px;}
-.backup-btn{width:100%;padding:8px 10px;background:#fff;color:var(--text-primary);border:1.5px solid var(--card-border);border-radius:var(--radius-sm);cursor:pointer;font-size:0.79rem;font-family:var(--font-stack);font-weight:600;transition:all 0.15s;}
-.backup-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
-.backup-hint{font-size:0.66rem;color:var(--text-muted);line-height:1.55;margin-top:8px;}
 /* Current user panel */
 .user-box{margin-bottom:14px;padding:11px;border:1px solid var(--sidebar-border);border-radius:var(--radius-sm);background:rgba(0,0,0,0.015);}
 .user-line{font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;}
@@ -1526,62 +1519,8 @@ function toggleSidebar() {
 // ═══════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════
-// BACKUP / RESTORE — 진도 백업(저장 공간 의존 방지)
-// ═══════════════════════════════════════════════════
-const ALL_LS_KEYS=[LS_ANSWERS,LS_SCRAP,LS_EXPL,LS_EXPLIMG,LS_EXPLHIST,LS_FILTER];
+// (백업/복원 미사용 dead code — 2026-06-09 제거: export/import/checkStorageHealth/ALL_LS_KEYS/pad2)
 
-function pad2(n){return String(n).padStart(2,'0');}
-
-function exportProgress(){
-  const data={_app:'endo_jokbo',_ver:2,_exported:new Date().toISOString(),store:{}};
-  let any=false;
-  ALL_LS_KEYS.forEach(function(k){ const v=localStorage.getItem(k); if(v!=null){ data.store[k]=v; if(k===LS_ANSWERS||k===LS_SCRAP||k===LS_EXPL) any=true; } });
-  const d=new Date();
-  const fname='족보_진도백업_'+d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+'_'+pad2(d.getHours())+pad2(d.getMinutes())+'.json';
-  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download=fname;
-  document.body.appendChild(a); a.click();
-  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); },150);
-  const st=document.getElementById('backup-status');
-  if(st){ const prev=st.innerHTML; st.innerHTML='💾 백업 파일을 저장했습니다'; setTimeout(function(){ st.innerHTML=prev; },3500); }
-}
-
-function triggerImport(){ const i=document.getElementById('import-file'); if(i) i.click(); }
-
-function importProgress(input){
-  const file=input.files&&input.files[0];
-  if(!file){ return; }
-  const reader=new FileReader();
-  reader.onload=function(e){
-    let data;
-    try{ data=JSON.parse(e.target.result); }
-    catch(err){ alert('백업 파일을 읽을 수 없습니다.\n올바른 진도 백업(.json) 파일인지 확인해 주세요.'); input.value=''; return; }
-    if(!data||data._app!=='endo_jokbo'||!data.store){ alert('이 파일은 이 사이트의 진도 백업 파일이 아닙니다.'); input.value=''; return; }
-    if(!confirm('백업을 불러오면 지금 이 브라우저의 풀이 기록이\n백업 내용으로 교체됩니다. 계속할까요?')){ input.value=''; return; }
-    try{ ALL_LS_KEYS.forEach(function(k){ if(k in data.store) localStorage.setItem(k,data.store[k]); }); }
-    catch(err){ alert('저장 공간이 부족해 일부를 불러오지 못했을 수 있습니다.'); }
-    alert('진도를 불러왔습니다. 화면을 새로고침합니다.');
-    input.value='';
-    location.reload();
-  };
-  reader.readAsText(file);
-}
-
-function checkStorageHealth(){
-  let ok=true;
-  try{ localStorage.setItem('__hc','1'); localStorage.removeItem('__hc'); }catch(e){ ok=false; }
-  const st=document.getElementById('backup-status');
-  if(!st) return;
-  if(ok){
-    st.classList.remove('warn');
-    st.innerHTML='✓ 풀이 기록이 이 브라우저에<br>자동으로 저장됩니다';
-  }else{
-    st.classList.add('warn');
-    st.innerHTML='⚠️ 이 환경에서는 기록이 자동 저장되지 않습니다(시크릿 모드 등). 일반 창에서 열거나 💾로 직접 백업하세요.';
-  }
-}
 
 function init() {
   updateHideBtn();
