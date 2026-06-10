@@ -375,9 +375,9 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 .prog-cell-prog{display:flex;align-items:center;gap:8px;}
 .prog-pct{font-size:0.78rem;color:var(--text-secondary);min-width:32px;}
 .prog-sim{font-weight:700;}
-.prog-sim.hi{color:#b03030;}
-.prog-sim.mid{color:#b07818;}
-.prog-sim.lo{color:var(--text-muted);font-weight:600;}
+.prog-sim.hi{color:#1f9d57;}
+.prog-sim.mid{color:#c2a200;}
+.prog-sim.lo{color:#c0392b;}
 .prog-sim.na{color:#cfccc6;font-weight:600;}
 .meta-input{padding:4px 6px;border:1px solid var(--card-border);border-radius:5px;font-family:var(--font-stack);font-size:0.8rem;text-align:center;background:#fff;}
 .date-input{width:80px;}
@@ -877,12 +877,12 @@ function renderProgress(){
     const simCls=(simP==null)?'na':(simP>=70?'hi':(simP>=40?'mid':'lo'));
     rows+='<tr>'
       +'<td class="prog-lec">'+esc(r.label)+'</td>'
+      +'<td class="prog-num prog-sim '+simCls+'">'+(simP==null?'—':simP+'%')+'</td>'
       +'<td class="prog-prof">'+(prof?esc(prof):'—')+'</td>'
       +'<td class="prog-num prog-date">'+(curDate(r.key)?esc(curDate(r.key)):'—')+'</td>'
       +'<td class="prog-num">'+a.total+'</td>'
       +'<td class="prog-num'+(full?' prog-done-full':'')+'">'+a.done+'</td>'
       +'<td><div class="prog-cell-prog"><div class="prog-bar'+(full?' full':'')+'"><span style="width:'+pct+'%"></span></div><span class="prog-pct">'+pct+'%</span></div></td>'
-      +'<td class="prog-num prog-sim '+simCls+'">'+(simP==null?'—':simP+'%')+'</td>'
       +'</tr>';
   });
   const totPct=totT?Math.round(totD/totT*100):0;
@@ -898,7 +898,7 @@ function renderProgress(){
       +'<div class="prog-sum-chip">강의 '+roster.length+'개</div>'
     +'</div>'
     +'<div class="prog-table-wrap"><table class="prog-table"><thead><tr>'
-      +'<th>강의</th><th>교수</th><th style="text-align:center;">수업일</th><th style="text-align:center;">총</th><th style="text-align:center;">푼</th><th>진척</th><th style="text-align:center;">유사도</th>'
+      +'<th>강의</th><th style="text-align:center;">유사도</th><th>교수</th><th style="text-align:center;">수업일</th><th style="text-align:center;">총</th><th style="text-align:center;">푼</th><th>진척</th>'
     +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 async function saveMetaBlur(kind, lec, el){
