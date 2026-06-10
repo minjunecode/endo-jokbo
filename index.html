@@ -910,11 +910,12 @@ const LEC_DATE={"01":"6/8(월)","02":"6/8(월)","04":"6/8(월)","05":"6/8(월)",
 // 강의별 메타(문항유사도) — qnotes 합성행 '__sim__{강의}'.expl 에 공유 저장(스키마 무변경). 교수·수업일은 위 정적맵(schedule 정본).
 function curMeta(kind,lec){ const s=shared['__'+kind+'__'+lec]; return (s&&s.expl)?s.expl:''; }
 function curProf(lec){ return LEC_PROF[lec]||''; }
-// 2026 신임 교수 — 과거 족보(2021·2022·2023·2025) 강의목록에 없던, 올해 처음 부임/출강하신 분.
-const NEW_PROF=['구유정','김유형','김지훈','노은','배재현','황규리'];
-function profHtml(prof){
+// 2026 강의별 신임 교수 — '그 강의(주제)를 올해 처음 맡은' 교수(다른 강의 경력 무관). 과거 족보(2021·2022·2023·2025) 강의-교수 대조.
+const NEW_BY_LEC={"07":["조선욱"],"08":["구유정"],"09":["구유정"],"10":["배재현"],"12":["김유형"],"22":["문준호"],"40":["조선욱"],"41":["송영신"],"43":["김지훈","김유형"],"44":["김민주"],"45":["김영아"],"54":["문민경"],"55":["최성희"],"57":["윤지완"],"60":["오태정"],"66":["노은"],"68":["노은"],"69":["임수"]};
+function profHtml(prof, lec){
   if(!prof) return '—';
-  return prof.split('/').map(function(n){ n=n.trim(); return NEW_PROF.indexOf(n)>=0 ? '<b class="new-prof" title="올해 처음 부임하신 신임 교수님">'+esc(n)+'</b>' : esc(n); }).join('/');
+  var nw=NEW_BY_LEC[lec]||[];
+  return prof.split('/').map(function(n){ n=n.trim(); return nw.indexOf(n)>=0 ? '<b class="new-prof" title="이 강의를 올해 처음 맡으신 교수님">'+esc(n)+'</b>' : esc(n); }).join('/');
 }
 function curDate(lec){ return LEC_DATE[lec]||''; }
 function curLecMemo(lec){ const k='__lmemo__'+(CURRENT_USER||'')+'__'+lec; const s=shared[k]; return (s&&s.expl)?s.expl:''; }
@@ -965,7 +966,7 @@ function renderProgress(){
     rows+='<tr>'
       +'<td class="prog-lec">'+esc(r.label)+'</td>'
       +'<td class="prog-num prog-sim '+simCls+'">'+(simP==null?'—':simP+'%')+'</td>'
-      +'<td class="prog-prof">'+profHtml(prof)+'</td>'
+      +'<td class="prog-prof">'+profHtml(prof,r.key)+'</td>'
       +'<td class="prog-num prog-date">'+(curDate(r.key)?esc(curDate(r.key)):'—')+'</td>'
       +'<td class="prog-num">'+a.total+'</td>'
       +'<td class="prog-num'+(full?' prog-done-full':'')+'">'+a.done+'</td>'
@@ -978,7 +979,7 @@ function renderProgress(){
   const termName= filterTerm==='1'?'대사와 내분비 1차': filterTerm==='2'?'대사와 내분비 2차':'전체 과목';
   pv.innerHTML=
     '<div class="prog-title">📊 풀이 진척도 확인</div>'
-    +'<div class="prog-sub">현재 사용자 <b>'+who+'</b> · 과목 <b>'+termName+'</b> · 강의별 전체 연도(2021·2022·2023·2025) 통합 집계입니다.<br>교수명·수업일은 schedule(공식 시간표), 「문항 유사도」는 2021~2025 연도간 문항 재출제 정도(거의 동일+같은 개념을 묻는 문항 포함)를 자동 측정한 값입니다. 높을수록 매년 비슷하게 출제 — 공부 효율이 좋습니다. (한 해만 출제된 강의는 —)<br>👤 교수명 중 <b class="new-prof">굵게</b> 표시된 분은 <b>올해 처음 부임/출강하신 신임 교수님</b>입니다(과거 족보 2021~2025 강의목록과 대조). 신임 교수님 강의는 기출 경향이 달라질 수 있으니 유사도는 참고만 하세요.<br>「메모」칸: 현재 사용자('+who+') 전용 한 줄 메모, 칸을 벗어나면 자동저장.</div>'
+    +'<div class="prog-sub">현재 사용자 <b>'+who+'</b> · 과목 <b>'+termName+'</b> · 강의별 전체 연도(2021·2022·2023·2025) 통합 집계입니다.<br>교수명·수업일은 schedule(공식 시간표), 「문항 유사도」는 2021~2025 연도간 문항 재출제 정도(거의 동일+같은 개념을 묻는 문항 포함)를 자동 측정한 값입니다. 높을수록 매년 비슷하게 출제 — 공부 효율이 좋습니다. (한 해만 출제된 강의는 —)<br>👤 교수명 중 <b class="new-prof">굵게</b> 표시된 분은 <b>이 강의를 올해 처음 맡으신 교수님</b>입니다(다른 강의 경력과 무관, 과거 족보 2021~2025 강의-교수 대조). 신임 교수님 강의는 기출 경향이 달라질 수 있으니 유사도는 참고만 하세요.<br>「메모」칸: 현재 사용자('+who+') 전용 한 줄 메모, 칸을 벗어나면 자동저장.</div>'
     +'<div class="prog-summary">'
       +'<div class="prog-sum-chip">총 '+totT+'문항</div>'
       +'<div class="prog-sum-chip">푼 문항 '+totD+'개</div>'
@@ -1153,6 +1154,11 @@ function buildCardHtml(q,idx) {
   const others=(allScraps[q.id]||[]).filter(function(u){return u!==CURRENT_USER;});
   const whoBadges=others.map(function(u){return '<span class="scrap-who">⭐'+esc(u)+'</span>';}).join('');
 
+  // 문항 수정(qfix) — 헤더 우측에 배치(별도 줄 없이 항상 노출)
+  const isFixed=!!(shared['__qfix__'+q.id]&&(shared['__qfix__'+q.id].expl||'').trim());
+  const fixBadge=isFixed?'<span class="qfix-badge">✎ 수정됨</span>':'';
+  const fixBtn=`<button class="qfix-edit-btn" onclick="startQFix('${q.id}')" title="문항(본문·보기·정답) 수정">✏️ 문항 수정</button>`;
+
   // header
   const header=`<div class="q-card-header">
     <div class="q-card-header-inner">
@@ -1164,16 +1170,13 @@ function buildCardHtml(q,idx) {
       ${MISCLASS[q.id]?`<span class="meta-tag tag-misclass" title="다른 강의(강${MISCLASS[q.id]}) 내용일 가능성이 있는 문항입니다. 지금 강의에서 배우지 않은 내용이면 오분류입니다.">⚠ 오분류 의심 → 강${MISCLASS[q.id]}?</span>`:''}
       ${MISIMG[q.id]?`<span class="meta-tag tag-misimg" title="${esc(MISIMG[q.id])}">⚠ 이미지 오류 의심</span>`:''}
     </div>
-    <div class="scrap-area">${whoBadges}${starBtn}</div>
+    <div class="scrap-area">${whoBadges}${fixBtn}${starBtn}</div>
   </div>`;
 
   const misImgNote=MISIMG[q.id]?`<div class="misclass-note" style="background:#fdeeee;border-color:#e0a8a8;color:#9a3030;">⚠ <b>이미지 오류 의심</b> — ${esc(MISIMG[q.id])}</div>`:'';
   const misNote=MISCLASS[q.id]?`<div class="misclass-note">⚠ <b>오분류 의심</b> — 이 문항은 <b>강${MISCLASS[q.id]}</b> 내용일 가능성이 있습니다. 지금 강의(${q.curr_lec_no}강)에서 배운 내용이 아니라면 태깅 오류이니 참고하세요.</div>`:'';
 
-  // stem
-  const isFixed=!!(shared['__qfix__'+q.id]&&(shared['__qfix__'+q.id].expl||'').trim());
-  const fixBadge=isFixed?'<span class="qfix-badge">✎ 수정됨</span>':'';
-  const fixBtn=`<button class="qfix-edit-btn" onclick="startQFix('${q.id}')">✏️ 문항 수정</button>`;
+  // stem (isFixed/fixBadge/fixBtn 은 헤더 위에서 이미 정의)
   const stem=`<div class="q-stem">${esc(q.stem)}${fixBadge}</div>`;
   const qfixFormHtml=buildQFixForm(q.id, q);
 
@@ -1210,7 +1213,6 @@ function buildCardHtml(q,idx) {
 
   return `${header}
   <div class="q-card-body">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:4px;">${fixBtn}</div>
     ${stem}${misNote}${misImgNote}${tbl}${img}${qfixFormHtml}${choices}${expl}
   </div>`;
 }
@@ -1343,7 +1345,6 @@ function buildExplHtml(qid, answered) {
   });
   const explPane=
     '<div class="tab-pane" id="pane-expl-'+qid+'">'
-    + '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button class="expl-edit-btn" id="editbtn-expl-'+qid+'" onclick="startEdit(\''+qid+'\',\'expl\')">✏️ 해설 수정</button></div>'
     + buildViewHtml(qid,'expl')
     + '<textarea class="expl-textarea" id="ta-expl-'+qid+'" placeholder="해설을 입력하세요..."></textarea>'
     + '<button class="expl-save-btn" id="save-expl-'+qid+'" onclick="saveEdit(\''+qid+'\',\'expl\')">저장</button>'
@@ -1359,7 +1360,7 @@ function buildExplHtml(qid, answered) {
     + '</div>';
   };
   return '<div class="expl-section'+visibleCls+'" id="expl-section-'+qid+'">'
-    + '<div class="tab-bar">'+tabs+pill+'</div>'
+    + '<div class="tab-bar">'+tabs+'<button class="expl-edit-btn" id="editbtn-expl-'+qid+'" onclick="startEdit(\''+qid+'\',\'expl\')" style="margin-left:auto;">✏️ 해설 수정</button>'+pill+'</div>'
     + explPane + memoPane('memo2','✍️ 구민준 메모') + memoPane('memo1','✍️ 이현우 메모')
     + '</div>';
 }
