@@ -358,6 +358,7 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 #progress-view{max-width:1000px;margin:0 auto;padding:22px 18px 60px;}
 .prog-title{font-size:1.05rem;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
 .prog-sub{font-size:0.8rem;color:var(--text-muted);margin-bottom:18px;line-height:1.6;}
+.new-prof{font-weight:800;color:var(--accent);}
 .prog-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
 .prog-sum-chip{background:var(--chip-bg);color:var(--chip-text);border-radius:var(--radius-sm);padding:8px 14px;font-size:0.84rem;font-weight:600;}
 .prog-table{width:100%;border-collapse:collapse;font-size:0.84rem;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);overflow:hidden;}
@@ -909,6 +910,12 @@ const LEC_DATE={"01":"6/8(월)","02":"6/8(월)","04":"6/8(월)","05":"6/8(월)",
 // 강의별 메타(문항유사도) — qnotes 합성행 '__sim__{강의}'.expl 에 공유 저장(스키마 무변경). 교수·수업일은 위 정적맵(schedule 정본).
 function curMeta(kind,lec){ const s=shared['__'+kind+'__'+lec]; return (s&&s.expl)?s.expl:''; }
 function curProf(lec){ return LEC_PROF[lec]||''; }
+// 2026 신임 교수 — 과거 족보(2021·2022·2023·2025) 강의목록에 없던, 올해 처음 부임/출강하신 분.
+const NEW_PROF=['구유정','김유형','김지훈','노은','배재현','황규리'];
+function profHtml(prof){
+  if(!prof) return '—';
+  return prof.split('/').map(function(n){ n=n.trim(); return NEW_PROF.indexOf(n)>=0 ? '<b class="new-prof" title="올해 처음 부임하신 신임 교수님">'+esc(n)+'</b>' : esc(n); }).join('/');
+}
 function curDate(lec){ return LEC_DATE[lec]||''; }
 function curLecMemo(lec){ const k='__lmemo__'+(CURRENT_USER||'')+'__'+lec; const s=shared[k]; return (s&&s.expl)?s.expl:''; }
 async function saveLecMemo(lec, el){
@@ -958,7 +965,7 @@ function renderProgress(){
     rows+='<tr>'
       +'<td class="prog-lec">'+esc(r.label)+'</td>'
       +'<td class="prog-num prog-sim '+simCls+'">'+(simP==null?'—':simP+'%')+'</td>'
-      +'<td class="prog-prof">'+(prof?esc(prof):'—')+'</td>'
+      +'<td class="prog-prof">'+profHtml(prof)+'</td>'
       +'<td class="prog-num prog-date">'+(curDate(r.key)?esc(curDate(r.key)):'—')+'</td>'
       +'<td class="prog-num">'+a.total+'</td>'
       +'<td class="prog-num'+(full?' prog-done-full':'')+'">'+a.done+'</td>'
@@ -971,7 +978,7 @@ function renderProgress(){
   const termName= filterTerm==='1'?'대사와 내분비 1차': filterTerm==='2'?'대사와 내분비 2차':'전체 과목';
   pv.innerHTML=
     '<div class="prog-title">📊 풀이 진척도 확인</div>'
-    +'<div class="prog-sub">현재 사용자 <b>'+who+'</b> · 과목 <b>'+termName+'</b> · 강의별 전체 연도(2021·2022·2023·2025) 통합 집계입니다.<br>교수명·수업일은 schedule(공식 시간표), 「문항 유사도」는 2021~2025 연도간 문항 재출제 정도(거의 동일+같은 개념을 묻는 문항 포함)를 자동 측정한 값입니다. 높을수록 매년 비슷하게 출제 — 공부 효율이 좋습니다. (한 해만 출제된 강의는 —)<br>「메모」칸: 현재 사용자('+who+') 전용 한 줄 메모, 칸을 벗어나면 자동저장.</div>'
+    +'<div class="prog-sub">현재 사용자 <b>'+who+'</b> · 과목 <b>'+termName+'</b> · 강의별 전체 연도(2021·2022·2023·2025) 통합 집계입니다.<br>교수명·수업일은 schedule(공식 시간표), 「문항 유사도」는 2021~2025 연도간 문항 재출제 정도(거의 동일+같은 개념을 묻는 문항 포함)를 자동 측정한 값입니다. 높을수록 매년 비슷하게 출제 — 공부 효율이 좋습니다. (한 해만 출제된 강의는 —)<br>👤 교수명 중 <b class="new-prof">굵게</b> 표시된 분은 <b>올해 처음 부임/출강하신 신임 교수님</b>입니다(과거 족보 2021~2025 강의목록과 대조). 신임 교수님 강의는 기출 경향이 달라질 수 있으니 유사도는 참고만 하세요.<br>「메모」칸: 현재 사용자('+who+') 전용 한 줄 메모, 칸을 벗어나면 자동저장.</div>'
     +'<div class="prog-summary">'
       +'<div class="prog-sum-chip">총 '+totT+'문항</div>'
       +'<div class="prog-sum-chip">푼 문항 '+totD+'개</div>'
