@@ -920,6 +920,8 @@ function lecRoster(){
 }
 // 강의 → 과목(1차/2차) 편성: ~34강=1차, 40강~=2차, CBL/정리/기타=양쪽(0)
 function lecTerm(key){ const n=parseInt(key,10); if(!isNaN(n)){ if(n<=34) return 1; if(n>=40) return 2; } return 0; }
+// 강의코드 표시명. 'NF'=오분류 교정용 특수 강의(어느 강의에도 없는 문항). 빈값=기타.
+function lecDisp(code){ return code==='NF' ? '99. Not found' : (code ? code+'강' : '기타'); }
 // 강의별 교수명·수업일 — schedule 봇 정본(2026 대사와 내분비 공식 시간표 260416.pdf 파싱 + Canvas 대조). 61/63 확정(CBL/정리 제외).
 const LEC_PROF={"01":"문민경","02":"조성엽","04":"박영주","05":"공성혜","06":"공성혜","07":"조선욱","08":"구유정","09":"구유정","10":"배재현","11":"최승홍/김상윤","12":"김유형","13":"이영아","14":"이영아","15":"원재경","16":"강건욱","17":"최준영","18":"조민철","19":"임영재","20":"신충호","21":"신충호","22":"문준호","27":"김상완","28":"김상완","29":"신찬수","30":"신찬수","31":"이성용","32":"윤태진/홍성환","33":"김상완","34":"김영아","40":"조선욱","41":"송영신","42":"문재훈","43":"김지훈/김유형","44":"김민주","45":"천기정/김영아","46":"박소연","47":"이규언","48":"이영아","49":"나희영","53":"최경호","54":"문민경","55":"최성희","57":"윤지완","58":"정재용","59":"곽수헌","60":"오태정","61":"오태정","62":"김재현","63":"김재현","65":"권오빈","66":"노은","67":"조정현","68":"노은","69":"임수","70":"임수","72":"서창석","73":"구승엽","74":"황규리","75":"지병철","76":"이정렬","77":"김훈","CBL":"","정리":""};
 const LEC_DATE={"01":"6/8(월)","02":"6/8(월)","04":"6/8(월)","05":"6/8(월)","06":"6/8(월)","07":"6/9(화)","08":"6/9(화)","09":"6/9(화)","10":"6/10(수)","11":"6/10(수)","12":"6/10(수)","13":"6/11(목)","14":"6/11(목)","15":"6/11(목)","16":"6/11(목)","17":"6/11(목)","18":"6/11(목)","19":"6/11(목)","20":"6/12(금)","21":"6/12(금)","22":"6/12(금)","27":"6/15(월)","28":"6/15(월)","29":"6/15(월)","30":"6/15(월)","31":"6/15(월)","32":"6/15(월)","33":"6/15(월)","34":"6/16(화)","40":"6/22(월)","41":"6/22(월)","42":"6/22(월)","43":"6/22(월)","44":"6/22(월)","45":"6/22(월)","46":"6/22(월)","47":"6/23(화)","48":"6/23(화)","49":"6/23(화)","53":"6/25(목)","54":"6/25(목)","55":"6/25(목)","57":"6/25(목)","58":"6/25(목)","59":"6/26(금)","60":"6/26(금)","61":"6/26(금)","62":"6/26(금)","63":"6/26(금)","65":"6/29(월)","66":"6/29(월)","67":"6/29(월)","68":"6/29(월)","69":"6/29(월)","70":"6/29(월)","72":"6/30(화)","73":"6/30(화)","74":"6/30(화)","75":"6/30(화)","76":"6/30(화)","77":"6/30(화)","CBL":"","정리":""};
@@ -1038,7 +1040,7 @@ function renderIndex() {
     else if(sa&&sa.sel&&sa.sel.length>0) {
       dotCls += sa.correct?' dot-correct':' dot-wrong';
     }
-    const lecLabel=q.curr_lec_no?q.curr_lec_no+'강':'기타';
+    const lecLabel=lecDisp(q.curr_lec_no);
     const grp=Q2GROUP[q.id]!=null?' 🔗':'';
     const label=`${q.year} · ${lecLabel} · Q${q.qnum}${grp}`;
     const btn=document.createElement('button');
@@ -1158,7 +1160,7 @@ function buildCardHtml(q,idx) {
   const answered=sa&&sa.sel&&sa.sel.length>0;
   const isScrap=!!savedScraps[q.id];
 
-  const lecTag=q.curr_lec_no?`${q.curr_lec_no}강 ${esc(q.curr_lecture||'')}`:'기타/미분류';
+  const lecTag=q.curr_lec_no?(q.curr_lec_no==='NF'?'🔍 99. Not found':`${q.curr_lec_no}강 ${esc(q.curr_lecture||'')}`):'기타/미분류';
   const recoveredTag=q.recovered?`<span class="meta-tag tag-recovered">복원</span>`:'';
 
   // Star button: ☆ (empty) / ★ (filled) — 내 스크랩 토글
@@ -1293,7 +1295,7 @@ function applyLecFixes(){
 function openLecPicker(qid){
   const q=QUESTIONS.find(function(x){return x.id===qid;}); if(!q) return;
   const roster=(FULL_LEC&&FULL_LEC.length)?FULL_LEC:lecRoster();
-  let opts='<option value="">— 미분류(기타) —</option>';
+  let opts='<option value="">— 교정 취소(원래 강의로 되돌림) —</option>';
   roster.forEach(function(r){
     opts+='<option value="'+esc(r.key)+'"'+(q.curr_lec_no===r.key?' selected':'')+'>'+esc(r.label)+'</option>';
   });
@@ -1760,7 +1762,7 @@ async function clearScopeAnswers(){
   if(!CURRENT_USER){ showIdentityPrompt(); return; }
   const targets=filteredQ.filter(function(q){return savedAnswers[q.id];}).map(function(q){return q.id;});
   if(!targets.length){ alert('현재 화면에 지울 풀이 기록이 없습니다.'); return; }
-  const scope = (filterLec!=='all') ? (filterLec+'강') : ((filterYear!=='all') ? (filterYear+'년') : '현재 화면');
+  const scope = (filterLec!=='all') ? lecDisp(filterLec) : ((filterYear!=='all') ? (filterYear+'년') : '현재 화면');
   if(!confirm(scope+' 범위의 내 풀이 '+targets.length+'개를 지울까요?\n(스크랩·메모는 그대로 유지됩니다)')) return;
   targets.forEach(function(qid){ delete savedAnswers[qid]; });
   saveAnswers();
@@ -1815,6 +1817,7 @@ function init() {
   updateHideBtn();
   updateUserPanel();
   FULL_LEC=lecRoster();                 // 전체 강의 로스터 캡처(드롭다운 재구성 전)
+  if(!FULL_LEC.some(function(r){return r.key==='NF';})) FULL_LEC.push({key:'NF', label:'99. Not found'});  // 오분류 교정 특수 강의(어느 강의에도 없는 문항)
   const termSel=document.getElementById('term-select'); if(termSel) termSel.value=filterTerm;
   rebuildLecOptions();                   // 현재 과목에 맞춰 강의 드롭다운 구성
   document.querySelectorAll('.yr-btn').forEach(b=>b.classList.toggle('active',b.dataset.year===filterYear));
