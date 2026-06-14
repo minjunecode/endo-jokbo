@@ -484,6 +484,24 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
   font-size:0.8rem;font-family:var(--font-stack);transition:all 0.12s;
 }
 .qfix-restore-btn:hover{background:#fff5e0;}
+/* ── 문항수정 사진 ── */
+.qfix-img-zone{
+  border:1.5px dashed var(--card-border);border-radius:var(--radius-sm);
+  padding:10px;margin-top:4px;text-align:center;background:#fafbfc;cursor:text;
+  outline:none;transition:border-color 0.12s,background 0.12s;
+}
+.qfix-img-zone:focus{border-color:var(--accent);background:#f0f7ff;}
+.qfix-img-zone img.qfix-img-preview{max-width:100%;max-height:220px;border-radius:var(--radius-sm);border:1px solid var(--card-border);object-fit:contain;background:#f4f6f8;}
+.qfix-img-none{font-size:0.78rem;color:var(--text-muted);padding:8px 0;}
+.qfix-img-status{font-size:0.74rem;font-weight:700;margin-bottom:6px;}
+.qfix-img-status.new{color:var(--accent);}
+.qfix-img-status.del{color:#c0392b;}
+.qfix-img-actions{display:flex;gap:7px;justify-content:center;margin-top:8px;flex-wrap:wrap;}
+.qfix-img-del-btn{padding:4px 12px;background:transparent;color:#c0392b;border:1.5px solid #e3a8a0;border-radius:var(--radius-sm);cursor:pointer;font-size:0.76rem;font-family:var(--font-stack);transition:all 0.12s;}
+.qfix-img-del-btn:hover{background:#fdecea;}
+.qfix-img-undo-btn{padding:4px 12px;background:transparent;color:#8a5c18;border:1.5px solid #e0b870;border-radius:var(--radius-sm);cursor:pointer;font-size:0.76rem;font-family:var(--font-stack);transition:all 0.12s;}
+.qfix-img-undo-btn:hover{background:#fff5e0;}
+.qfix-img-hint{font-size:0.71rem;color:var(--text-muted);margin-top:6px;line-height:1.5;}
 /* ── 진척도 메모 ── */
 .lmemo-input{
   width:100%;border:1.5px solid var(--card-border);border-radius:var(--radius-sm);
@@ -1247,8 +1265,10 @@ const TAB_FIELDS=[{key:'expl',label:'해설'},{key:'memo2',label:'구민준'},{k
 // ═══════════════════════════════════════════════════
 // 문항 수정(QFIX) — 파싱 오류 교정, 공유 저장
 // ═══════════════════════════════════════════════════
-const QFIX_ORIG={};  // {qid:{stem,options,answer}} — 원본 백업(복원용)
+const QFIX_ORIG={};  // {qid:{stem,options,answer,image}} — 원본 백업(복원용)
 const CIRCLES_FIX=['①','②','③','④','⑤'];
+// 문항수정 폼에서 대기 중인 사진 변경: qid→ (dataURL=새사진 / null=삭제 / 키없음=변경없음). 저장 시 __qfix__ JSON 의 image 로 영속.
+const QFIX_IMG={};
 
 function applyQFixes(){
   // shared 에서 __qfix__* 키 순회 → QUESTIONS 원소 덮어쓰기
@@ -1261,10 +1281,11 @@ function applyQFixes(){
     try{ fix=JSON.parse(raw); }catch(e){ continue; }
     const q=QUESTIONS.find(function(x){return x.id===qid;});
     if(!q) continue;
-    if(!QFIX_ORIG[qid]) QFIX_ORIG[qid]={stem:q.stem, options:q.options.slice(), answer:q.answer.slice()};
+    if(!QFIX_ORIG[qid]) QFIX_ORIG[qid]={stem:q.stem, options:q.options.slice(), answer:q.answer.slice(), image:q.image};
     if(fix.stem!==undefined) q.stem=fix.stem;
     if(Array.isArray(fix.options)&&fix.options.length) q.options=fix.options;
     if(Array.isArray(fix.answer)&&fix.answer.length) q.answer=fix.answer;
+    if('image' in fix) q.image=fix.image;   // dataURL=교체 / null=삭제
   }
 }
 
@@ -1341,6 +1362,9 @@ function buildQFixForm(qid, q){
     +optInputs
     +'<label class="qfix-field-label">정답 (복수 선택 가능)</label>'
     +'<div class="qfix-ans-wrap">'+opts+'</div>'
+    +'<label class="qfix-field-label">문항 사진</label>'
+    +'<div class="qfix-img-zone" id="qfix-img-zone-'+qid+'" tabindex="0" onclick="this.focus()">'+qfixImgInner(qid,q)+'</div>'
+    +'<div class="qfix-img-hint">📋 위 칸을 클릭한 뒤 <b>Ctrl+V</b> 로 새 사진을 붙여넣을 수 있습니다 · 기존 사진은 <b>삭제</b> 버튼으로 제거 (저장해야 공유 반영)</div>'
     +'<div class="qfix-btns">'
     +'<button class="qfix-save-btn" onclick="saveQFix(\''+qid+'\')">저장</button>'
     +'<button class="qfix-cancel-btn" onclick="cancelQFix(\''+qid+'\')">취소</button>'
@@ -1349,6 +1373,41 @@ function buildQFixForm(qid, q){
     +'</div>';
 }
 
+// 문항수정 폼의 사진 영역 내부 HTML. 대기변경(QFIX_IMG) 우선, 없으면 현재 q.image.
+function qfixImgInner(qid, q){
+  const pending=(qid in QFIX_IMG);
+  const eff=pending?QFIX_IMG[qid]:(q?q.image:null);
+  if(pending && QFIX_IMG[qid]===null){
+    // 삭제 대기
+    return '<div class="qfix-img-status del">🗑 사진 삭제 예정 (저장 시 적용)</div>'
+      +'<div class="qfix-img-actions"><button class="qfix-img-undo-btn" onclick="qfixUndoImg(\''+qid+'\')">되돌리기</button></div>';
+  }
+  if(eff){
+    const isNew=pending; // 새로 붙여넣은 사진
+    let h='';
+    if(isNew) h+='<div class="qfix-img-status new">🆕 새 사진 (저장 시 적용)</div>';
+    h+='<img class="qfix-img-preview" src="'+esc(eff)+'" alt="문항 사진">';
+    h+='<div class="qfix-img-actions"><button class="qfix-img-del-btn" onclick="qfixDelImg(\''+qid+'\')">🗑 사진 삭제</button>';
+    if(isNew) h+='<button class="qfix-img-undo-btn" onclick="qfixUndoImg(\''+qid+'\')">되돌리기</button>';
+    h+='</div>';
+    return h;
+  }
+  return '<div class="qfix-img-none">사진 없음 — 여기 클릭 후 Ctrl+V 로 붙여넣기</div>';
+}
+function refreshQFixImg(qid){
+  const zone=document.getElementById('qfix-img-zone-'+qid);
+  if(!zone) return;
+  const q=QUESTIONS.find(function(x){return x.id===qid;});
+  zone.innerHTML=qfixImgInner(qid,q);
+}
+function qfixDelImg(qid){
+  QFIX_IMG[qid]=null;   // 삭제 대기(저장 시 영속)
+  refreshQFixImg(qid);
+}
+function qfixUndoImg(qid){
+  delete QFIX_IMG[qid]; // 대기 변경 취소 → 현재 사진으로 복귀
+  refreshQFixImg(qid);
+}
 function startQFix(qid){
   const form=document.getElementById('qfix-form-'+qid);
   if(!form) return;
@@ -1357,8 +1416,9 @@ function startQFix(qid){
   if(ta) ta.focus();
 }
 function cancelQFix(qid){
+  delete QFIX_IMG[qid]; // 대기 사진변경 폐기
   const form=document.getElementById('qfix-form-'+qid);
-  if(form) form.classList.remove('show');
+  if(form){ form.classList.remove('show'); refreshQFixImg(qid); }
 }
 async function saveQFix(qid){
   const ta=document.getElementById('qfix-stem-'+qid);
@@ -1375,15 +1435,25 @@ async function saveQFix(qid){
     if(cb&&cb.checked) answer.push(i);
   }
   if(!answer.length){ alert('정답을 최소 1개 선택해야 합니다.'); return; }
+  // 사진: 이번에 바꿨으면 그 값, 아니면 기존 저장된 override 보존
+  let imgToSave; // undefined = fix 에 image 미포함(원본 사용)
+  if(qid in QFIX_IMG){ imgToSave=QFIX_IMG[qid]; }
+  else {
+    const prevRaw=(shared['__qfix__'+qid]&&shared['__qfix__'+qid].expl)||'';
+    if(prevRaw){ try{ const pf=JSON.parse(prevRaw); if('image' in pf) imgToSave=pf.image; }catch(e){} }
+  }
   const fix={stem:stem, options:options, answer:answer};
-  const ok=await sbUpsert('__qfix__'+qid, {expl:JSON.stringify(fix)});
-  setSyncPills();
-  // 적용
+  if(imgToSave!==undefined) fix.image=imgToSave;
+  // 적용 (원본 백업은 변경 전에)
   const q=QUESTIONS.find(function(x){return x.id===qid;});
   if(q){
-    if(!QFIX_ORIG[qid]) QFIX_ORIG[qid]={stem:q.stem, options:q.options.slice(), answer:q.answer.slice()};
+    if(!QFIX_ORIG[qid]) QFIX_ORIG[qid]={stem:q.stem, options:q.options.slice(), answer:q.answer.slice(), image:q.image};
     q.stem=stem; q.options=options; q.answer=answer;
+    if(imgToSave!==undefined) q.image=imgToSave;
   }
+  delete QFIX_IMG[qid]; // 대기 사진변경 소비
+  const ok=await sbUpsert('__qfix__'+qid, {expl:JSON.stringify(fix)});
+  setSyncPills();
   // 카드 재렌더(filteredQ 에서 해당 qid 의 index 찾기)
   const cardEl=document.querySelector('.q-card[data-qid="'+qid+'"]');
   if(cardEl){
@@ -1396,11 +1466,13 @@ async function restoreQFix(qid){
   if(!confirm('이 문항을 원본으로 복원할까요? (교정 내용이 지워집니다)')) return;
   await sbUpsert('__qfix__'+qid, {expl:''});
   setSyncPills();
+  delete QFIX_IMG[qid];
   const q=QUESTIONS.find(function(x){return x.id===qid;});
   if(q&&QFIX_ORIG[qid]){
     q.stem=QFIX_ORIG[qid].stem;
     q.options=QFIX_ORIG[qid].options.slice();
     q.answer=QFIX_ORIG[qid].answer.slice();
+    if('image' in QFIX_ORIG[qid]) q.image=QFIX_ORIG[qid].image;
     delete QFIX_ORIG[qid];
   }
   const cardEl=document.querySelector('.q-card[data-qid="'+qid+'"]');
@@ -1632,8 +1704,8 @@ function refreshExplImgs(qid){
     if(el) el.innerHTML=buildImgGallery(qid,f);
   });
 }
-// 붙여넣은 이미지를 최대 1100px로 축소 + JPEG 압축 → Supabase 공유 저장(탭별로 태깅)
-function addImageFromBlob(qid, field, blob){
+// 붙여넣은 이미지를 최대 1100px로 축소 + JPEG 압축 → dataURL 콜백(공통)
+function compressImageBlob(blob, cb){
   const reader=new FileReader();
   reader.onload=function(ev){
     const img=new Image();
@@ -1647,16 +1719,22 @@ function addImageFromBlob(qid, field, blob){
       ctx.drawImage(img,0,0,w,h);
       let dataURL;
       try{ dataURL=cv.toDataURL('image/jpeg',0.82); }catch(e){ dataURL=ev.target.result; }
-      const imgs=rawImgs(qid).slice(); imgs.push({f:field, s:dataURL});
-      sbUpsert(qid,{expl_imgs:imgs}).then(function(ok){
-        refreshExplImgs(qid); setSyncPills();
-        if(!ok) alert('인터넷 연결이 없어 사진 공유 저장에 실패했습니다. 연결 후 다시 시도해 주세요.');
-      });
+      cb(dataURL);
     };
     img.onerror=function(){ alert('이미지를 불러오지 못했습니다.'); };
     img.src=ev.target.result;
   };
   reader.readAsDataURL(blob);
+}
+// 해설/메모 첨부사진: 축소 → Supabase 공유 저장(탭별로 태깅)
+function addImageFromBlob(qid, field, blob){
+  compressImageBlob(blob, function(dataURL){
+    const imgs=rawImgs(qid).slice(); imgs.push({f:field, s:dataURL});
+    sbUpsert(qid,{expl_imgs:imgs}).then(function(ok){
+      refreshExplImgs(qid); setSyncPills();
+      if(!ok) alert('인터넷 연결이 없어 사진 공유 저장에 실패했습니다. 연결 후 다시 시도해 주세요.');
+    });
+  });
 }
 function delExplImg(qid,i){
   const cur=rawImgs(qid);
@@ -1696,6 +1774,19 @@ function imgFail(el){
 document.addEventListener('paste',function(e){
   const ae=document.activeElement;
   if(!ae||!ae.id) return;
+  // 문항수정 사진 영역에 붙여넣기 → 대기 변경(QFIX_IMG)에 새 사진 적용(저장 시 영속)
+  const mq=ae.id.match(/^qfix-img-zone-(.+)$/);
+  if(mq){
+    const qid=mq[1];
+    const items=(e.clipboardData&&e.clipboardData.items)||[];
+    for(let i=0;i<items.length;i++){
+      if(items[i].type&&items[i].type.indexOf('image')===0){
+        const blob=items[i].getAsFile();
+        if(blob){ compressImageBlob(blob,function(d){ QFIX_IMG[qid]=d; refreshQFixImg(qid); }); e.preventDefault(); return; }
+      }
+    }
+    return;
+  }
   const m=ae.id.match(/^ta-(expl|memo1|memo2)-(.+)$/);
   if(!m) return;
   const field=m[1], qid=m[2];
