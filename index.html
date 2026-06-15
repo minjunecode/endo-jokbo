@@ -1066,6 +1066,9 @@ function setTerm(v){
   applyFilters();
   const pv=document.getElementById('progress-view');
   if(pv && !pv.hidden) renderProgress();
+  // 우상단 과목(1차/2차)으로 알렌 개념·문제 분리: 활성 뷰면 즉시 재렌더(아니면 다음 진입 시 term stamp 로 재렌더)
+  const acv=document.getElementById('allen-concept-view'); if(acv && !acv.hidden){ acv._term=null; renderAllenConcepts(); }
+  const aqv=document.getElementById('allen-quiz-view'); if(aqv && !aqv.hidden){ renderAllenQuiz(); }
 }
 function rebuildLecOptions(){
   const sel=document.getElementById('lec-select'); if(!sel||!FULL_LEC.length) return;
@@ -2144,6 +2147,8 @@ function markedParse(md){
     }
     return '<a class="allen-xlink" target="_blank" rel="noopener" href="https://www.allenslibrary.com/study/theory/'+id+'">';
   });
+  // 이미지 lazy-load (스크롤 시 로드) — 초기 렌더 부하·렉 완화
+  html = html.replace(/<img (?![^>]*loading=)/gi, '<img loading="lazy" decoding="async" ');
   return html;
 }
 // allenslibrary 링크 클릭 → 우리 알렌 개념 탭의 해당 섹션으로 내부 이동
@@ -2195,7 +2200,7 @@ function switchView(view){
   } else if(view==='allen-quiz'){
     if(aqView) aqView.hidden=false;
     var t3=document.getElementById('toptab-aquiz'); if(t3) t3.classList.add('active');
-    if(!aqView._rendered) renderAllenQuiz();
+    if(!(aqView._rendered && aqView._term===filterTerm)) renderAllenQuiz();
   } else if(view==='progress'){
     if(progView) progView.hidden=false;
     var t4=document.getElementById('toptab-progress'); if(t4) t4.classList.add('active');
@@ -2207,40 +2212,41 @@ function switchView(view){
 // ── Allen Concept State ───────────────────────────────────────────────────
 var _acRendered = false;
 
+function allenTermLabel(){ return filterTerm==='1'?' · 1차':filterTerm==='2'?' · 2차':''; }
 function renderAllenConcepts(){
   var container = document.getElementById('allen-concept-view');
   if(!container) return;
-  if(_acRendered && container.children.length>0) return;
-  _acRendered = true;
+  // 우상단 과목(filterTerm) 으로 분리: 같은 term 이미 렌더돼 있으면 유지
+  if(container._term===filterTerm && container.querySelector('#allen-toc')) return;
 
-  var term1Items = [], term2Items = [];
-  ALLEN_CONCEPTS.forEach(function(ch, ci){
-    var subs1=[], subs2=[];
-    (ch.sub||[]).forEach(function(sub, si){
-      var btn='<button class="allen-toc-item" data-ci="'+ci+'" data-si="'+si+'" onclick="selectAllenSub('+ci+','+si+')">'+escHtml(sub.title)+'</button>';
-      if(sub.term===2) subs2.push(btn);
-      else subs1.push(btn);
+  function buildGroup(termVal, label){
+    var items=[];
+    ALLEN_CONCEPTS.forEach(function(ch, ci){
+      var subs=[];
+      (ch.sub||[]).forEach(function(sub, si){
+        var t = sub.term===2?2:1;
+        if(t!==termVal) return;
+        subs.push('<button class="allen-toc-item" data-ci="'+ci+'" data-si="'+si+'" onclick="selectAllenSub('+ci+','+si+')">'+escHtml(sub.title)+'</button>');
+      });
+      if(subs.length) items.push('<div class="allen-toc-ch-hdr">'+escHtml(ch.num+' '+ch.title)+'</div>'+subs.join(''));
     });
-    if(subs1.length){
-      term1Items.push('<div class="allen-toc-ch-hdr">'+escHtml(ch.num+' '+ch.title)+'</div>'+subs1.join(''));
-    }
-    if(subs2.length){
-      term2Items.push('<div class="allen-toc-ch-hdr">'+escHtml(ch.num+' '+ch.title)+'</div>'+subs2.join(''));
-    }
-  });
-
-  var tocHtml =
-    '<div class="allen-toc-group"><div class="allen-toc-group-hdr">🟦 1차 범위</div>'+term1Items.join('')+'</div>'+
-    '<div class="allen-toc-group"><div class="allen-toc-group-hdr">🟥 2차 범위</div>'+term2Items.join('')+'</div>';
+    if(!items.length) return '';
+    return '<div class="allen-toc-group"><div class="allen-toc-group-hdr">'+label+'</div>'+items.join('')+'</div>';
+  }
+  var tocHtml;
+  if(filterTerm==='1') tocHtml=buildGroup(1,'🟦 1차 범위');
+  else if(filterTerm==='2') tocHtml=buildGroup(2,'🟥 2차 범위');
+  else tocHtml=buildGroup(1,'🟦 1차 범위')+buildGroup(2,'🟥 2차 범위');
 
   container.innerHTML =
-    '<div style="padding:18px 0 4px;"><h2 style="font-size:1.1rem;color:var(--text-primary);font-weight:700;padding:0 4px;">📘 알렌 개념</h2></div>'+
+    '<div style="padding:18px 0 4px;"><h2 style="font-size:1.1rem;color:var(--text-primary);font-weight:700;padding:0 4px;">📘 알렌 개념'+allenTermLabel()+'</h2></div>'+
     '<div class="allen-layout">'+
       '<div class="allen-toc" id="allen-toc">'+tocHtml+'</div>'+
       '<div class="allen-concept-panel" id="allen-concept-panel">'+
         '<div class="allen-concept-placeholder">← 왼쪽 목차에서 개념 절을 선택하세요.</div>'+
       '</div>'+
     '</div>';
+  container._term = filterTerm;
 }
 
 function escHtml(s){
@@ -2291,25 +2297,21 @@ function renderAllenQuiz(){
   if(!container) return;
   loadAllenAnswers();
 
-  // 챕터 옵션
+  // 챕터 옵션 — 현재 과목(filterTerm) 에 해당하는 챕터만
   var chMap = {};
-  ALLEN_QUESTIONS.forEach(function(q){ chMap[q.ch] = q.ch_title; });
+  ALLEN_QUESTIONS.forEach(function(q){ if(filterTerm==='all'||String(q.term)===filterTerm) chMap[q.ch]=q.ch_title; });
   var chOptions = '<option value="all">전체 챕터</option>';
   Object.keys(chMap).sort().forEach(function(k){ chOptions += '<option value="'+escHtml(k)+'">'+escHtml(k+' '+chMap[k])+'</option>'; });
-  // 연도 버튼(출처에서 추출, 내림차순)
-  var yset={}; ALLEN_QUESTIONS.forEach(function(q){ var y=allenYear(q.source); if(y) yset[y]=1; });
+  // 연도 버튼(현재 과목 범위 내에서 추출, 내림차순)
+  var yset={}; ALLEN_QUESTIONS.forEach(function(q){ if(filterTerm==='all'||String(q.term)===filterTerm){ var y=allenYear(q.source); if(y) yset[y]=1; } });
   var years=Object.keys(yset).map(Number).sort(function(a,b){return b-a;});
   var yearBtns='<button class="yr-btn'+(_allenFilterYear==='all'?' active':'')+'" data-y="all" onclick="setAllenYear(\'all\')">전체</button>';
   years.forEach(function(y){ yearBtns+='<button class="yr-btn'+(_allenFilterYear===String(y)?' active':'')+'" data-y="'+y+'" onclick="setAllenYear(\''+y+'\')">'+y+'</button>'; });
-  // 범위 버튼
-  var T=[['all','전체'],['1','1차'],['2','2차']];
-  var termBtns=T.map(function(t){ return '<button class="yr-btn'+(_allenFilterTerm===t[0]?' active':'')+'" data-t="'+t[0]+'" onclick="setAllenTerm(\''+t[0]+'\')">'+t[1]+'</button>'; }).join('');
 
   container.innerHTML =
     '<div class="layout">'+
       '<nav id="allen-sidebar"><div class="sidebar-panel">'+
         '<div class="filter-section"><span class="filter-label">연도</span><div class="year-btns" id="aq-year-btns">'+yearBtns+'</div></div>'+
-        '<div class="filter-section"><span class="filter-label">범위</span><div class="year-btns" id="aq-term-btns">'+termBtns+'</div></div>'+
         '<div class="filter-section"><span class="filter-label">챕터</span><select id="aq-ch-sel" onchange="applyAllenFilter()">'+chOptions+'</select></div>'+
         '<div class="scope-bar" id="aq-scope">로딩 중...</div>'+
         '<div class="sidebar-actions"><button class="action-btn clear-btn" onclick="resetAllenQuiz()">🗑 알렌 진도 초기화</button></div>'+
@@ -2322,6 +2324,7 @@ function renderAllenQuiz(){
     '</div>';
 
   container._rendered = true;
+  container._term = filterTerm;
   if(chMap[_allenFilterCh]===undefined && _allenFilterCh!=='all') _allenFilterCh='all';
   var chSel=document.getElementById('aq-ch-sel'); if(chSel) chSel.value=_allenFilterCh;
   applyAllenFilter();
@@ -2332,7 +2335,7 @@ function applyAllenFilter(){
   _allenFilterCh = chSel ? chSel.value : 'all';
 
   var qs = ALLEN_QUESTIONS.filter(function(q){
-    if(_allenFilterTerm!=='all' && String(q.term)!==_allenFilterTerm) return false;
+    if(filterTerm!=='all' && String(q.term)!==filterTerm) return false;   // 우상단 과목 선택으로 분리
     if(_allenFilterCh!=='all' && q.ch!==_allenFilterCh) return false;
     if(_allenFilterYear!=='all' && String(allenYear(q.source))!==_allenFilterYear) return false;
     return true;
@@ -2340,82 +2343,70 @@ function applyAllenFilter(){
   renderAllenFeed(qs);
 }
 
-function renderAllenFeed(qs){
-  var feed = document.getElementById('aq-feed');
-  var stats = document.getElementById('aq-stats');
-  if(!feed) return;
+// 단일 카드 HTML (renderAllenFeed/allenChoose 공용 — 부분 갱신으로 렉 제거)
+function buildAllenCardHtml(q, qi){
+  var ans = _allenAnswers[q.id];
+  var locked = ans && ans.sel && ans.sel.length>0;
+  var termCls = q.term===2?'t2':'t1';
+  var termLabel = q.term===2?'🟥 2차':'🟦 1차';
+  var stemHtml = markedParse(q.stem_md||'');
+  var optsHtml = '<ul class="allen-opts" id="aq-opts-'+qi+'">';
+  (q.options||[]).forEach(function(opt, oi){
+    var cls='';
+    if(locked){
+      var isAns = q.answer.indexOf(oi+1)>=0;
+      var isChosen = ans.sel.indexOf(oi)>=0;
+      if(isAns) cls=' correct-ans locked';
+      else if(isChosen) cls=' chosen-wrong locked';
+      else cls=' locked';
+    }
+    var num = CIRCLE_NUMS[oi] || (oi+1)+'.';
+    var clickHandler = locked ? '' : ('onclick="allenChoose('+qi+','+oi+')"');
+    optsHtml += '<li class="'+cls.trim()+'" '+clickHandler+'><span class="opt-num">'+num+'</span><span>'+escHtml(opt)+'</span></li>';
+  });
+  optsHtml += '</ul>';
+  var afterHtml = '';
+  if(locked){
+    var verdictCls = ans.correct?'ok':'ng';
+    var verdictText = ans.correct?'✅ 정답!':'❌ 오답';
+    var explHtml = markedParse(q.expl_md||'');
+    afterHtml = '<div class="allen-q-verdict '+verdictCls+'">'+verdictText+'</div>'+(q.expl_md?'<div class="allen-q-expl">'+explHtml+'</div>':'');
+  }
+  return '<div class="allen-q-card" id="aq-card-'+qi+'">'+
+      '<div class="allen-q-hdr">'+
+        '<span class="ch-badge">'+escHtml(q.ch+' '+q.ch_title)+'</span>'+
+        '<span class="term-badge '+termCls+'">'+termLabel+'</span>'+
+        '<span>'+escHtml(q.title||q.id)+'</span>'+
+      '</div>'+
+      '<div class="allen-q-stem">'+stemHtml+'</div>'+optsHtml+afterHtml+
+    '</div>';
+}
 
+// 통계·scope 갱신만(카드 재렌더 없이)
+function updateAllenStats(qs){
   var total=qs.length, done=0, correct=0;
   qs.forEach(function(q){ var a=_allenAnswers[q.id]; if(a&&a.sel&&a.sel.length){done++;if(a.correct)correct++;} });
-  if(stats){
-    stats.innerHTML =
-      '<span class="allen-stat-chip">표시 '+total+'문항</span>'+
-      '<span class="allen-stat-chip">푼 '+done+'문항</span>'+
-      '<span class="allen-stat-chip" style="color:var(--correct)">정답 '+correct+'</span>'+
-      '<span class="allen-stat-chip" style="color:var(--incorrect)">오답 '+(done-correct)+'</span>';
-  }
+  var stats=document.getElementById('aq-stats');
+  if(stats){ stats.innerHTML =
+    '<span class="allen-stat-chip">표시 '+total+'문항</span>'+
+    '<span class="allen-stat-chip">푼 '+done+'문항</span>'+
+    '<span class="allen-stat-chip" style="color:var(--correct)">정답 '+correct+'</span>'+
+    '<span class="allen-stat-chip" style="color:var(--incorrect)">오답 '+(done-correct)+'</span>'; }
   var scope=document.getElementById('aq-scope');
   if(scope){
-    var sc=[];
-    sc.push(_allenFilterYear==='all'?'전체 연도':_allenFilterYear+'년');
-    sc.push(_allenFilterTerm==='all'?'전체 범위':(_allenFilterTerm+'차'));
+    var sc=[ (_allenFilterYear==='all'?'전체 연도':_allenFilterYear+'년'), (filterTerm==='all'?'전체 범위':(filterTerm+'차')) ];
     scope.innerHTML='<b>'+sc.join(' · ')+'</b><br>표시 '+total+'문항 · 푼 '+done+' · 정답 '+correct;
   }
+}
+
+function renderAllenFeed(qs){
+  var feed = document.getElementById('aq-feed');
+  if(!feed) return;
+  updateAllenStats(qs);
   var nr=document.getElementById('no-allen-results'); if(nr) nr.style.display = qs.length===0?'block':'none';
-  if(qs.length===0){ feed.innerHTML=''; return; }
-
+  if(qs.length===0){ feed.innerHTML=''; feed._qs=qs; return; }
   var html = '';
-  qs.forEach(function(q, qi){
-    var ans = _allenAnswers[q.id];
-    var locked = ans && ans.sel && ans.sel.length>0;
-    var termCls = q.term===2?'t2':'t1';
-    var termLabel = q.term===2?'🟥 2차':'🟦 1차';
-
-    var stemMdFixed = (q.stem_md||'');
-    var stemHtml = markedParse(stemMdFixed);
-
-    var optsHtml = '<ul class="allen-opts" id="aq-opts-'+qi+'">';
-    (q.options||[]).forEach(function(opt, oi){
-      var cls='';
-      if(locked){
-        var isAns = q.answer.indexOf(oi+1)>=0;
-        var isChosen = ans.sel.indexOf(oi)>=0;
-        if(isAns) cls=' correct-ans locked';
-        else if(isChosen) cls=' chosen-wrong locked';
-        else cls=' locked';
-      }
-      var num = CIRCLE_NUMS[oi] || (oi+1)+'.';
-      var clickHandler = locked ? '' : ('onclick="allenChoose('+qi+','+oi+')"');
-      optsHtml += '<li class="'+cls.trim()+'" '+clickHandler+'>'+
-        '<span class="opt-num">'+num+'</span>'+
-        '<span>'+escHtml(opt)+'</span>'+
-      '</li>';
-    });
-    optsHtml += '</ul>';
-
-    var afterHtml = '';
-    if(locked){
-      var verdictCls = ans.correct?'ok':'ng';
-      var verdictText = ans.correct?'✅ 정답!':'❌ 오답';
-      var explMdFixed = (q.expl_md||'');
-      var explHtml = markedParse(explMdFixed);
-      afterHtml =
-        '<div class="allen-q-verdict '+verdictCls+'">'+verdictText+'</div>'+
-        (q.expl_md?'<div class="allen-q-expl">'+explHtml+'</div>':'');
-    }
-
-    html +=
-      '<div class="allen-q-card" id="aq-card-'+qi+'">'+
-        '<div class="allen-q-hdr">'+
-          '<span class="ch-badge">'+escHtml(q.ch+' '+q.ch_title)+'</span>'+
-          '<span class="term-badge '+termCls+'">'+termLabel+'</span>'+
-          '<span>'+escHtml(q.title||q.id)+'</span>'+
-        '</div>'+
-        '<div class="allen-q-stem">'+stemHtml+'</div>'+
-        optsHtml+
-        afterHtml+
-      '</div>';
-  });
+  qs.forEach(function(q, qi){ html += buildAllenCardHtml(q, qi); });
   feed.innerHTML = html;
   feed._qs = qs;
 }
@@ -2428,11 +2419,12 @@ function allenChoose(qi, optIdx){
   var correct = q.answer.indexOf(optIdx+1)>=0;
   _allenAnswers[q.id] = {sel:[optIdx], correct:correct};
   saveAllenAnswers();
-  applyAllenFilter();
-  setTimeout(function(){
-    var card=document.getElementById('aq-card-'+qi);
-    if(card) card.scrollIntoView({block:'nearest',behavior:'smooth'});
-  },50);
+  // ★해당 카드 1개만 갱신(전체 재렌더 제거 → 렉 해소)
+  var card=document.getElementById('aq-card-'+qi);
+  if(card){ card.outerHTML = buildAllenCardHtml(q, qi); }
+  updateAllenStats(feed._qs);
+  var c2=document.getElementById('aq-card-'+qi);
+  if(c2) setTimeout(function(){ c2.scrollIntoView({block:'nearest'}); }, 20);
 }
 
 function resetAllenQuiz(){
