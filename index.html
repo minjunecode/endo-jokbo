@@ -588,7 +588,7 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
   border-left: 3px solid var(--accent); margin: 10px 0; padding: 6px 14px;
   background: var(--accent-light); border-radius: 0 6px 6px 0; font-size: 0.88rem;
 }
-.allen-concept-panel img { max-width: 100%; border-radius: 6px; margin: 8px 0; display: block; }
+.allen-concept-panel img { max-width: 100%; max-height: 420px; width: auto; object-fit: contain; border-radius: 6px; margin: 8px 0; display: block; }
 .allen-concept-panel code { background: #f0ede8; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
 .allen-concept-panel pre { background: #f0ede8; padding: 10px 14px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
 .allen-concept-placeholder { color: var(--text-muted); text-align: center; padding: 60px 0; font-size: 0.95rem; }
@@ -621,7 +621,8 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 .allen-q-card {
   background: var(--card-bg); border: 1px solid var(--card-border);
   border-radius: var(--radius-md); padding: 18px 20px;
-  margin-bottom: 16px; box-shadow: var(--card-shadow);
+  margin-bottom: 16px;
+  /* box-shadow 제거: 수백 카드의 그림자 blur 재계산이 스크롤 시 페인트 렉 유발(족보 .q-card 도 box-shadow:none). 분리는 border 로 충분. */
 }
 .allen-q-hdr {
   font-size: 0.76rem; color: var(--text-muted); margin-bottom: 8px;
@@ -639,7 +640,7 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 .allen-q-stem {
   font-size: 0.9rem; line-height: 1.65; margin-bottom: 12px; color: var(--text-primary);
 }
-.allen-q-stem img { max-width: 100%; border-radius: 6px; margin: 6px 0; display: block; }
+.allen-q-stem img { max-width: 100%; max-height: 340px; width: auto; object-fit: contain; border-radius: 6px; margin: 6px 0; display: block; }
 .allen-q-stem p { margin: 6px 0; }
 .allen-q-stem table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.84rem; }
 .allen-q-stem th, .allen-q-stem td { border: 1px solid var(--card-border); padding: 4px 8px; }
@@ -2147,8 +2148,8 @@ function markedParse(md){
     }
     return '<a class="allen-xlink" target="_blank" rel="noopener" href="https://www.allenslibrary.com/study/theory/'+id+'">';
   });
-  // 이미지 lazy-load (스크롤 시 로드) — 초기 렌더 부하·렉 완화
-  html = html.replace(/<img (?![^>]*loading=)/gi, '<img loading="lazy" decoding="async" ');
+  // 이미지는 족보처럼 eager 로드(초기 1회) — lazy 는 스크롤 중 로드·리플로우로 오히려 스크롤 렉 유발. decoding 만 async.
+  html = html.replace(/<img (?![^>]*decoding=)/gi, '<img decoding="async" ');
   return html;
 }
 // allenslibrary 링크 클릭 → 우리 알렌 개념 탭의 해당 섹션으로 내부 이동
