@@ -19,6 +19,8 @@
   --star-color:#e8a020;
   --radius-sm:6px;--radius-md:10px;--radius-lg:14px;
   --header-h:52px;
+  --tabs-h:47px;            /* #top-tabs(sticky) 높이 — 사이드바 sticky top 이 헤더+탭바 아래에 붙도록 */
+  --sticky-top:99px;        /* = header-h + tabs-h (calc 비의존 폴백) */
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:var(--font-stack);background:var(--body-bg);color:var(--text-primary);min-height:100vh;-webkit-font-smoothing:antialiased;}
@@ -48,7 +50,7 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 #sidebar{
   width:var(--sidebar-width);min-width:var(--sidebar-width);
   background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);
-  position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));
+  position:sticky;top:calc(var(--header-h) + var(--tabs-h));height:calc(100vh - var(--header-h) - var(--tabs-h));
   overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column;
   scrollbar-width:thin;scrollbar-color:#d0d8e4 transparent;
 }
@@ -165,7 +167,7 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
 /* MAIN */
 #main{flex:1;padding:20px 22px;max-width:880px;overflow-x:hidden;}
 /* 알렌 문제 풀이 사이드바(족보와 동일 톤) */
-#allen-sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow-y:auto;flex-shrink:0;}
+#allen-sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);position:sticky;top:calc(var(--header-h) + var(--tabs-h));height:calc(100vh - var(--header-h) - var(--tabs-h));overflow-y:auto;flex-shrink:0;}
 #allen-main{flex:1;padding:20px 22px;max-width:880px;overflow-x:hidden;}
 #aq-ch-sel{width:100%;padding:7px 9px;border:1px solid var(--card-border);border-radius:6px;background:#fff;font-family:var(--font-stack);font-size:0.82rem;color:var(--text-primary);cursor:pointer;}
 .allen-ilink{color:var(--accent);text-decoration:underline;cursor:pointer;}
