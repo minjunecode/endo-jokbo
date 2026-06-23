@@ -1104,6 +1104,9 @@ function applyTermTabVisibility(){
 }
 // ICM 단원 순서(코드 → 라벨). curr_lec_no 고유값을 이 순서대로 노출.
 const ICM_LEC_ORDER=['1A','1B','1C','1D','1E','2','3','4','5','6','7'];
+const ICM_SIMGROUPS=[["ICM-2025-Q2","ICM-2023-Q19","ICM-2022-Q22"],["ICM-2025-Q3","ICM-2022-Q3","ICM-2021-Q5"],["ICM-2025-Q9","ICM-2022-Q6","ICM-2021-Q11"],["ICM-2025-Q10","ICM-2023-Q20","ICM-2017-Q13"],["ICM-2025-Q16","ICM-2022-Q4","ICM-2021-Q8"],["ICM-2025-Q25","ICM-2023-Q17","ICM-2021-Q3"],["ICM-2022-Q20","ICM-2021-Q9","ICM-2017-Q15"],["ICM-2025-Q1","ICM-2023-Q8"],["ICM-2025-Q4","ICM-2023-Q5"],["ICM-2025-Q11","ICM-2023-Q13"],["ICM-2025-Q12","ICM-2023-Q3"],["ICM-2025-Q14","ICM-2022-Q17"],["ICM-2025-Q21","ICM-2023-Q22"],["ICM-2023-Q2","ICM-2022-Q19"],["ICM-2023-Q11","ICM-2021-Q18"],["ICM-2023-Q18","ICM-2021-Q6"],["ICM-2023-Q21","ICM-2019-Q11"],["ICM-2021-Q10","ICM-2019-Q23"]];
+const ICM_Q2GROUP={"ICM-2025-Q2":0,"ICM-2023-Q19":0,"ICM-2022-Q22":0,"ICM-2025-Q3":1,"ICM-2022-Q3":1,"ICM-2021-Q5":1,"ICM-2025-Q9":2,"ICM-2022-Q6":2,"ICM-2021-Q11":2,"ICM-2025-Q10":3,"ICM-2023-Q20":3,"ICM-2017-Q13":3,"ICM-2025-Q16":4,"ICM-2022-Q4":4,"ICM-2021-Q8":4,"ICM-2025-Q25":5,"ICM-2023-Q17":5,"ICM-2021-Q3":5,"ICM-2022-Q20":6,"ICM-2021-Q9":6,"ICM-2017-Q15":6,"ICM-2025-Q1":7,"ICM-2023-Q8":7,"ICM-2025-Q4":8,"ICM-2023-Q5":8,"ICM-2025-Q11":9,"ICM-2023-Q13":9,"ICM-2025-Q12":10,"ICM-2023-Q3":10,"ICM-2025-Q14":11,"ICM-2022-Q17":11,"ICM-2025-Q21":12,"ICM-2023-Q22":12,"ICM-2023-Q2":13,"ICM-2022-Q19":13,"ICM-2023-Q11":14,"ICM-2021-Q18":14,"ICM-2023-Q18":15,"ICM-2021-Q6":15,"ICM-2023-Q21":16,"ICM-2019-Q11":16,"ICM-2021-Q10":17,"ICM-2019-Q23":17};
+const ICM_UNIT_SIM={"1A":20,"1B":27,"1C":45,"1D":55,"1E":0,"2":55,"3":17,"4":20,"5":65,"6":0,"7":29};
 function rebuildLecOptions(){
   const sel=document.getElementById('lec-select'); if(!sel) return;
   // ICM 과목: ICM_QUESTIONS 의 curr_lec_no 고유값을 정해진 순서대로 옵션 생성
@@ -1287,11 +1290,14 @@ function renderICMProgress(pv){
     const pct=a.total?Math.round(a.done/a.total*100):0;
     const acc=a.done?Math.round(a.correct/a.done*100):0;
     const full=(a.total>0&&a.done===a.total);
+    const simP=(typeof ICM_UNIT_SIM!=='undefined'&&ICM_UNIT_SIM.hasOwnProperty(k))?ICM_UNIT_SIM[k]:null;
+    const simCls=(simP==null)?'na':(simP>=50?'hi':(simP>=25?'mid':'lo'));
     rows+='<tr>'
       +'<td class="prog-lec">'+esc(k+'. '+a.label)+'</td>'
       +'<td class="prog-num">'+a.total+'</td>'
       +'<td class="prog-num'+(full?' prog-done-full':'')+'">'+a.done+'</td>'
       +'<td class="prog-num">'+(a.done?acc+'%':'—')+'</td>'
+      +'<td class="prog-num prog-sim '+simCls+'">'+(simP==null?'—':simP+'%')+'</td>'
       +'<td><div class="prog-cell-prog"><div class="prog-bar'+(full?' full':'')+'"><span style="width:'+pct+'%"></span></div><span class="prog-pct">'+pct+'%</span></div></td>'
       +'</tr>';
   });
@@ -1309,7 +1315,7 @@ function renderICMProgress(pv){
       +'<div class="prog-sum-chip">단원 '+ordered.length+'개</div>'
     +'</div>'
     +'<div class="prog-table-wrap"><table class="prog-table"><thead><tr>'
-      +'<th>단원</th><th style="text-align:center;">총</th><th style="text-align:center;">푼</th><th style="text-align:center;">정답률</th><th>진척</th>'
+      +'<th>단원</th><th style="text-align:center;">총</th><th style="text-align:center;">푼</th><th style="text-align:center;">정답률</th><th style="text-align:center;" title="과년도 반복 출제 비율(유사문항 묶음 기준)">유사도</th><th>진척</th>'
     +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 async function saveMetaBlur(kind, lec, el){
@@ -1345,7 +1351,7 @@ function renderIndex() {
       dotCls += sa.correct?' dot-correct':' dot-wrong';
     }
     const lecLabel=lecDisp(q.curr_lec_no);
-    const grp=Q2GROUP[q.id]!=null?' 🔗':'';
+    const grp=(filterTerm==='icm'?ICM_Q2GROUP:Q2GROUP)[q.id]!=null?' 🔗':'';
     const label=`${q.year} · ${lecLabel} · Q${q.qnum}${grp}`;
     const btn=document.createElement('button');
     btn.className='idx-item';
@@ -1407,10 +1413,10 @@ function renderFeed() {
   const idxOf={}; filteredQ.forEach(function(q,i){ idxOf[q.id]=i; });
   const doneG={};
   filteredQ.forEach(function(q,i){
-    const gi=Q2GROUP[q.id];
+    const gi=(filterTerm==='icm'?ICM_Q2GROUP:Q2GROUP)[q.id];
     if(gi!=null){
       if(doneG[gi]) return;   // 이미 묶음으로 렌더됨
-      const memIdx=SIMGROUPS[gi].filter(function(id){return idxOf[id]!=null;}).map(function(id){return idxOf[id];});
+      const memIdx=(filterTerm==='icm'?ICM_SIMGROUPS:SIMGROUPS)[gi].filter(function(id){return idxOf[id]!=null;}).map(function(id){return idxOf[id];});
       if(memIdx.length>=2){ doneG[gi]=true; frag.appendChild(buildBundle(gi, memIdx)); return; }
       // 현재 필터에 1개만 → 일반 카드로
     }
