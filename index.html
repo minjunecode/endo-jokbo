@@ -2247,6 +2247,7 @@ function init() {
   FULL_LEC=lecRoster();                 // 전체 강의 로스터 캡처(드롭다운 재구성 전)
   if(!FULL_LEC.some(function(r){return r.key==='NF';})) FULL_LEC.push({key:'NF', label:'99. Not found'});  // 오분류 교정 특수 강의(어느 강의에도 없는 문항)
   const termSel=document.getElementById('term-select'); if(termSel) termSel.value=filterTerm;
+  applyTermTabVisibility();              // 저장된 과목이 ICM이면 새로고침 시에도 알렌 탭 숨김 유지
   rebuildLecOptions();                   // 현재 과목에 맞춰 강의 드롭다운 구성
   document.querySelectorAll('.yr-btn').forEach(b=>b.classList.toggle('active',b.dataset.year===filterYear));
   const sel=document.getElementById('lec-select');
