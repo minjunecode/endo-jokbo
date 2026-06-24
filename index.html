@@ -1113,27 +1113,39 @@ function rebuildLecOptions(){
   if(filterTerm==='icm'){
     const seen={};
     (typeof ICM_QUESTIONS!=='undefined'?ICM_QUESTIONS:[]).forEach(function(q){ if(q.curr_lec_no && !seen[q.curr_lec_no]) seen[q.curr_lec_no]=q.curr_lecture||''; });
-    let h='<option value="all">전체 단원</option>';
     const ordered=ICM_LEC_ORDER.filter(function(k){return seen[k]!==undefined;});
     // 순서표에 없는 잔여 코드도 뒤에 붙임(안전)
     Object.keys(seen).forEach(function(k){ if(ordered.indexOf(k)<0) ordered.push(k); });
+    // 첫 진입(저장된 lec 가 'all') 시 첫 단원 자동 선택 — 렉 방지 우선
+    if(filterLec==='all' && ordered.length){ filterLec=ordered[0]; }
+    let h='';
     ordered.forEach(function(k){ h+='<option value="'+esc(k)+'">'+esc(k+'. '+seen[k])+'</option>'; });
+    h+='<option value="all">전체 단원</option>';  // '전체'는 맨 아래(명시 선택 전용)
     sel.innerHTML=h;
     sel.value=filterLec;
-    if(sel.value!==filterLec){ filterLec='all'; sel.value='all'; }
+    if(sel.value!==filterLec){ filterLec=(ordered.length?ordered[0]:'all'); sel.value=filterLec; }
     return;
   }
   if(!FULL_LEC.length) return;
-  let html='<option value="all">전체 강의</option>';
+  // 현재 과목(filterTerm) 에 해당하는 강의 key 목록 — 첫 강의 자동선택 판정용
+  const lecKeys=[];
+  FULL_LEC.forEach(function(r){
+    const t=lecTerm(r.key);
+    if(filterTerm==='all' || t===0 || String(t)===filterTerm) lecKeys.push(r.key);
+  });
+  // 첫 진입(저장된 lec 가 'all') 시 첫 강의 자동 선택 — 렉 방지 우선
+  if(filterLec==='all' && lecKeys.length){ filterLec=lecKeys[0]; }
+  let html='';
   FULL_LEC.forEach(function(r){
     const t=lecTerm(r.key);
     if(filterTerm==='all' || t===0 || String(t)===filterTerm){
       html+='<option value="'+r.key+'">'+esc(r.label)+'</option>';
     }
   });
+  html+='<option value="all">전체 강의</option>';  // '전체'는 맨 아래(명시 선택 전용)
   sel.innerHTML=html;
   sel.value=filterLec;
-  if(sel.value!==filterLec){ filterLec='all'; sel.value='all'; }
+  if(sel.value!==filterLec){ filterLec=(lecKeys.length?lecKeys[0]:'all'); sel.value=filterLec; }
 }
 
 // ═══════════════════════════════════════════════════
@@ -2490,8 +2502,10 @@ function renderAllenQuiz(){
   // 챕터 옵션 — 현재 과목(filterTerm) 에 해당하는 챕터만
   var chMap = {};
   ALLEN_QUESTIONS.forEach(function(q){ if(filterTerm==='all'||String(q.term)===filterTerm) chMap[q.ch]=q.ch_title; });
-  var chOptions = '<option value="all">전체 챕터</option>';
-  Object.keys(chMap).sort().forEach(function(k){ chOptions += '<option value="'+escHtml(k)+'">'+escHtml(k+' '+chMap[k])+'</option>'; });
+  var chKeys = Object.keys(chMap).sort();
+  var chOptions = '';
+  chKeys.forEach(function(k){ chOptions += '<option value="'+escHtml(k)+'">'+escHtml(k+' '+chMap[k])+'</option>'; });
+  chOptions += '<option value="all">전체 챕터</option>';  // '전체'는 맨 아래(명시 선택 전용)
   // 연도 버튼(현재 과목 범위 내에서 추출, 내림차순)
   var yset={}; ALLEN_QUESTIONS.forEach(function(q){ if(filterTerm==='all'||String(q.term)===filterTerm){ var y=allenYear(q.source); if(y) yset[y]=1; } });
   var years=Object.keys(yset).map(Number).sort(function(a,b){return b-a;});
@@ -2524,6 +2538,8 @@ function renderAllenQuiz(){
   container._rendered = true;
   container._term = filterTerm;
   if(chMap[_allenFilterCh]===undefined && _allenFilterCh!=='all') _allenFilterCh='all';
+  // 첫 진입('all') 시 첫 챕터 자동 선택 — 렉 방지 우선('전체'는 명시 선택 전용)
+  if(_allenFilterCh==='all' && chKeys.length){ _allenFilterCh=chKeys[0]; }
   var chSel=document.getElementById('aq-ch-sel'); if(chSel) chSel.value=_allenFilterCh;
   applyAllenFilter();
 }
