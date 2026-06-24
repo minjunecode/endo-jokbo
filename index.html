@@ -625,6 +625,10 @@ header h1{font-size:1rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;
   border-radius: var(--radius-md); padding: 18px 20px;
   margin-bottom: 16px;
   /* box-shadow 제거: 수백 카드의 그림자 blur 재계산이 스크롤 시 페인트 렉 유발(족보 .q-card 도 box-shadow:none). 분리는 border 로 충분. */
+  /* ★렉 해결: 단원당 100+문항(갑상샘105·당뇨107) 한방 렌더 부담 → 화면 밖 카드 렌더 스킵.
+     contain-intrinsic-size 로 미렌더 카드 추정높이를 줘 스크롤바·점프 안정화. */
+  content-visibility: auto;
+  contain-intrinsic-size: 0 420px;
 }
 .allen-q-hdr {
   font-size: 0.76rem; color: var(--text-muted); margin-bottom: 8px;
