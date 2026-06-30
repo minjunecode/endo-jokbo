@@ -1041,7 +1041,7 @@ function applyFilters(skipShuffle) {
   const SRC = (filterTerm==='icm') ? ICM_QUESTIONS : QUESTIONS;
   const isICM = (filterTerm==='icm');
   filteredQ = SRC.filter(q => {
-    const yearOk = isICM ? true : (filterYear==='all' || String(q.year)===String(filterYear));
+    const yearOk = (filterYear==='all' || String(q.year)===String(filterYear));
     let lecOk;
     if(filterLec==='all') lecOk=true;
     else if(filterLec==='null') lecOk=!q.curr_lec_no;
@@ -1062,6 +1062,17 @@ function applyFilters(skipShuffle) {
   saveFilter();
 }
 
+function findQ(qid){ return QUESTIONS.find(x=>x.id===qid) || (typeof ICM_QUESTIONS!=="undefined"?ICM_QUESTIONS.find(x=>x.id===qid):null); }
+function rebuildYearButtons(){
+  const box=document.getElementById("year-btns"); if(!box) return;
+  const isICM=(filterTerm==="icm");
+  const src = isICM ? (typeof ICM_QUESTIONS!=="undefined"?ICM_QUESTIONS:[]) : QUESTIONS.filter(function(q){ const t=lecTerm(q.curr_lec_no); return filterTerm==="all"||t===0||String(t)===filterTerm; });
+  const ys={}; src.forEach(function(q){ if(q.year) ys[String(q.year)]=true; });
+  const years=Object.keys(ys).sort(function(a,b){return Number(b)-Number(a);});
+  let h='<button class="yr-btn'+(filterYear==="all"?" active":"")+'" data-year="all" onclick="setYear(\'all\')">전체</button>';
+  years.forEach(function(y){ h+='<button class="yr-btn'+(filterYear===y?" active":"")+'" data-year="'+y+'" onclick="setYear(\''+y+'\')">'+y+'</button>'; });
+  box.innerHTML=h;
+}
 function setYear(y) {
   filterYear=y;
   document.querySelectorAll('.yr-btn').forEach(b=>b.classList.toggle('active',b.dataset.year===y));
@@ -1083,6 +1094,7 @@ function setTerm(v){
   // ICM 과목: 알렌 탭 2개 숨김(ICM 데이터엔 알렌 개념·문제 없음). 그 외 과목으로 돌아오면 복원.
   applyTermTabVisibility();
   rebuildLecOptions();
+  filterYear='all'; rebuildYearButtons();
   applyFilters();
   const pv=document.getElementById('progress-view');
   if(pv && !pv.hidden) renderProgress();
@@ -1593,7 +1605,7 @@ function applyQFixes(){
     if(!raw.trim()) continue;
     let fix;
     try{ fix=JSON.parse(raw); }catch(e){ continue; }
-    const q=QUESTIONS.find(function(x){return x.id===qid;});
+    const q=findQ(qid);
     if(!q) continue;
     if(!QFIX_ORIG[qid]) QFIX_ORIG[qid]={stem:q.stem, options:q.options.slice(), answer:q.answer.slice(), image:q.image};
     if(fix.stem!==undefined) q.stem=fix.stem;
@@ -1619,7 +1631,7 @@ function applyLecFixes(){
     if(!k.startsWith('__lecfix__')) continue;
     const qid=k.slice('__lecfix__'.length);
     const code=((shared[k]||{}).expl||'').trim();
-    const q=QUESTIONS.find(function(x){return x.id===qid;});
+    const q=findQ(qid);
     if(!q) continue;
     if(!(qid in QLEC_ORIG)) QLEC_ORIG[qid]={no:q.curr_lec_no, name:q.curr_lecture};
     if(code){ q.curr_lec_no=code; q.curr_lecture=(LECNAME&&LECNAME[code])||''; }
@@ -1628,8 +1640,12 @@ function applyLecFixes(){
 }
 // 오분류 버튼 → 강의 선택 모달
 function openLecPicker(qid){
-  const q=QUESTIONS.find(function(x){return x.id===qid;}); if(!q) return;
-  const roster=(FULL_LEC&&FULL_LEC.length)?FULL_LEC:lecRoster();
+  const q=findQ(qid); if(!q) return;
+  let roster;
+  if(qid.indexOf("ICM-")===0){
+    const seen={}; (typeof ICM_QUESTIONS!=="undefined"?ICM_QUESTIONS:[]).forEach(function(x){ if(x.curr_lec_no&&!(x.curr_lec_no in seen)) seen[x.curr_lec_no]=x.curr_lecture||""; });
+    roster=ICM_LEC_ORDER.filter(function(k){return k in seen;}).map(function(k){return {key:k,label:k+". "+seen[k]};});
+  } else { roster=(FULL_LEC&&FULL_LEC.length)?FULL_LEC:lecRoster(); }
   let opts='<option value="">— 교정 취소(원래 강의로 되돌림) —</option>';
   roster.forEach(function(r){
     opts+='<option value="'+esc(r.key)+'"'+(q.curr_lec_no===r.key?' selected':'')+'>'+esc(r.label)+'</option>';
@@ -1711,7 +1727,7 @@ function qfixImgInner(qid, q){
 function refreshQFixImg(qid){
   const zone=document.getElementById('qfix-img-zone-'+qid);
   if(!zone) return;
-  const q=QUESTIONS.find(function(x){return x.id===qid;});
+  const q=findQ(qid);
   zone.innerHTML=qfixImgInner(qid,q);
 }
 function qfixDelImg(qid){
@@ -1759,7 +1775,7 @@ async function saveQFix(qid){
   const fix={stem:stem, options:options, answer:answer};
   if(imgToSave!==undefined) fix.image=imgToSave;
   // 적용 (원본 백업은 변경 전에)
-  const q=QUESTIONS.find(function(x){return x.id===qid;});
+  const q=findQ(qid);
   if(q){
     if(!QFIX_ORIG[qid]) QFIX_ORIG[qid]={stem:q.stem, options:q.options.slice(), answer:q.answer.slice(), image:q.image};
     q.stem=stem; q.options=options; q.answer=answer;
@@ -1781,7 +1797,7 @@ async function restoreQFix(qid){
   await sbUpsert('__qfix__'+qid, {expl:''});
   setSyncPills();
   delete QFIX_IMG[qid];
-  const q=QUESTIONS.find(function(x){return x.id===qid;});
+  const q=findQ(qid);
   if(q&&QFIX_ORIG[qid]){
     q.stem=QFIX_ORIG[qid].stem;
     q.options=QFIX_ORIG[qid].options.slice();
@@ -2271,6 +2287,7 @@ function init() {
   const termSel=document.getElementById('term-select'); if(termSel) termSel.value=filterTerm;
   applyTermTabVisibility();              // 저장된 과목이 ICM이면 새로고침 시에도 알렌 탭 숨김 유지
   rebuildLecOptions();                   // 현재 과목에 맞춰 강의 드롭다운 구성
+  rebuildYearButtons();                  // 연도 버튼도 현재 과목 연도로 동적 구성
   document.querySelectorAll('.yr-btn').forEach(b=>b.classList.toggle('active',b.dataset.year===filterYear));
   const sel=document.getElementById('lec-select');
   if(filterLec!=='all') sel.value=filterLec;
