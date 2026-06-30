@@ -1884,11 +1884,17 @@ function setSyncPills(){
 async function sbLoadProgress(){
   if(!SB) return;
   try{
-    const res=await SB.from('progress').select('uname,qid,sel,correct,scrap');
-    if(res.error) throw res.error;
+    // ★페이지네이션: Supabase 기본 1000행 제한으로 진도 truncate 방지(1000행씩 끝까지 로드)
+    let _rows=[], _from=0; const _PAGE=1000;
+    while(true){
+      const res=await SB.from('progress').select('uname,qid,sel,correct,scrap').range(_from,_from+_PAGE-1);
+      if(res.error) throw res.error;
+      const _b=res.data||[]; _rows=_rows.concat(_b);
+      if(_b.length<_PAGE) break; _from+=_PAGE;
+    }
     savedAnswers={}; allScraps={}; savedScraps={};
     _allenAnswers={}; _allenScrap={};   // ★알렌도 서버 기준(족보와 동일 progress 테이블, qid 'allen-' 접두로 구분)
-    (res.data||[]).forEach(function(r){
+    _rows.forEach(function(r){
       var isAllen=(typeof r.qid==='string' && r.qid.indexOf('allen-')===0);
       if(r.uname===CURRENT_USER){
         if(isAllen){
